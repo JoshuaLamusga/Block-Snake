@@ -16,7 +16,7 @@ namespace Snake
         //Whether or not the point is ready to be deleted.
         public bool markedForDeletion = false;
         //The player who got the point.
-        public Player playerWhoCaptured = Player.none;
+        public Player playerWhoCaptured = Player.None;
 
         public Point(MainLoop game, int xPos, int yPos)
         {

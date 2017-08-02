@@ -14,6 +14,8 @@
         toggleGrid,
         toggleSfx,
         onePlayer,
-        twoPlayer
+        twoPlayer,
+        threePlayer,
+        fourPlayer
     }
 }
