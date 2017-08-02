@@ -4,14 +4,15 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 
 namespace Snake
 {
     /// <summary>
-    /// This is the main type for your game
+    /// Handles execution of the game.
     /// </summary>
-    public class MainLoop : Microsoft.Xna.Framework.Game
+    public class MainLoop : Game
     {
         //The graphics device and batcher to handle graphics.
         GraphicsDeviceManager graphics;
@@ -31,7 +32,9 @@ namespace Snake
         private Texture2D sprTitlePlay, sprTitleInfo, sprTitleOps;
         private Texture2D sprTitleLogo, sprTitleSnakeSelector;
         private Texture2D sprTitlePlayPlayers, sprTitlePlayPlayersOne, sprTitlePlayPlayersTwo;
+        private Texture2D sprTitlePlayPlayersThree, sprTitlePlayPlayersFour;
         private Texture2D sprTitleGameStart, sprTitleGameStartBlue, sprTitleGameStartRed;
+        private Texture2D sprTitleGameStartGreen, sprTitleGameStartYellow;
         private Texture2D sprTitleGamePaused, sprTitleInfoBack;
         private Texture2D sprTitleSizeSmall, sprTitleSizeMedium, sprTitleSizeLarge;
         private Texture2D sprTitleOpsToggleGrid, sprTitleOpsToggleSfx;
@@ -56,28 +59,31 @@ namespace Snake
         private float tickDelay = 12, tick = 0;
 
         //A randomizer for variation; see constructor.
-        private Random chance;
+        private Random rng;
 
         //The height and width of the screen; see LoadContent.
         private int scrWidth, scrHeight;
 
         //Stacks of Vector2s controlling the positions of occupied squares; see constructor.
-        private Queue<Vector2> playerOneSnake, playerTwoSnake;
+        private Queue<Vector2> playerOneSnake, playerTwoSnake, playerThreeSnake, playerFourSnake;
 
         //The last positions occupied by the players, used for growth.
-        Vector2 playerOneDeleted, playerTwoDeleted;
+        Vector2 playerOneDeleted, playerTwoDeleted, playerThreeDeleted, playerFourDeleted;
 
         //A single list controlling the positions of points; see constructor.
         private List<Point> gamePoints, gamePointsDelete;
 
         //Gets the directions of the players.
-        private Direction playerOneDir = Direction.none, playerTwoDir = Direction.none;
+        private Direction playerOneDir = Direction.None, playerTwoDir = Direction.None,
+            playerThreeDir = Direction.None, playerFourDir = Direction.None;
 
         //Who won, if any.
-        private Player winner = Player.all;
+        private ObservableCollection<Player> losers = new ObservableCollection<Player>();
+        private Player winner = Player.All;
 
         //The current controls.
         private GamePadState gpState1, gpState1Old, gpState2, gpState2Old;
+        private GamePadState gpState3, gpState3Old, gpState4, gpState4Old;
         private KeyboardState kbState, kbStateOld;
 
         //Whether or not the game is paused.
@@ -90,7 +96,7 @@ namespace Snake
         MusicPlayer musicList;
 
         //How many players are involved.
-        private bool twoPlayer = false;
+        private int numPlayers = 1;
 
         //The current room.
         private RoomIndex room = RoomIndex.rmMenu;
@@ -101,15 +107,20 @@ namespace Snake
             Content.RootDirectory = "Content";
 
             //Sets up the random instance.
-            chance = new Random();
+            rng = new Random();
 
             //Creates stacks of Vector2s controlling the positions of occupied squares.
             playerOneSnake = new Queue<Vector2>();
             playerTwoSnake = new Queue<Vector2>();
+            playerThreeSnake = new Queue<Vector2>();
+            playerFourSnake = new Queue<Vector2>();
 
             //Creates a list of points (and a deletion list).
             gamePoints = new List<Point>();
             gamePointsDelete = new List<Point>();
+
+            //Checks the win status when a player loses.
+            losers.CollectionChanged += (a, b) => { UpdateWinStatus(); };
         }
 
         protected override void Initialize()
@@ -142,10 +153,14 @@ namespace Snake
             sprTitlePlayPlayers = Content.Load<Texture2D>("sprTitlePlayPlayers");
             sprTitlePlayPlayersOne = Content.Load<Texture2D>("sprTitlePlayPlayersOne");
             sprTitlePlayPlayersTwo = Content.Load<Texture2D>("sprTitlePlayPlayersTwo");
+            sprTitlePlayPlayersThree = Content.Load<Texture2D>("sprTitlePlayPlayersThree");
+            sprTitlePlayPlayersFour = Content.Load<Texture2D>("sprTitlePlayPlayersFour");
             sprTitleSnakeSelector = Content.Load<Texture2D>("sprTitleSnakeSelector");
             sprTitleGameStart = Content.Load<Texture2D>("sprTitleGameStart");
             sprTitleGameStartRed = Content.Load<Texture2D>("sprTitleGameStartRed");
             sprTitleGameStartBlue = Content.Load<Texture2D>("sprTitleGameStartBlue");
+            sprTitleGameStartGreen = Content.Load<Texture2D>("sprTitleGameStartGreen");
+            sprTitleGameStartYellow = Content.Load<Texture2D>("sprTitleGameStartYellow");
             sprTitleGamePaused = Content.Load<Texture2D>("sprTitleGamePaused");
             sprTitleSizeSmall = Content.Load<Texture2D>("sprTitleSizeSmall");
             sprTitleSizeMedium = Content.Load<Texture2D>("sprTitleSizeMedium");
@@ -166,6 +181,8 @@ namespace Snake
             //Sets the default gamepad and keyboard states.
             gpState1 = GamePad.GetState(PlayerIndex.One);
             gpState2 = GamePad.GetState(PlayerIndex.Two);
+            gpState3 = GamePad.GetState(PlayerIndex.Three);
+            gpState4 = GamePad.GetState(PlayerIndex.Four);
             kbState = Keyboard.GetState();
         }
 
@@ -174,11 +191,15 @@ namespace Snake
             //Sets the old gamepad and keyboard states.
             gpState1Old = gpState1;
             gpState2Old = gpState2;
+            gpState3Old = gpState3;
+            gpState4Old = gpState4;
             kbStateOld = kbState;
 
             //Gets the current gamepad and keyboard states.
             gpState1 = GamePad.GetState(PlayerIndex.One);
             gpState2 = GamePad.GetState(PlayerIndex.Two);
+            gpState3 = GamePad.GetState(PlayerIndex.Three);
+            gpState4 = GamePad.GetState(PlayerIndex.Four);
             kbState = Keyboard.GetState();
 
             //Updates the music if sound is enabled.
@@ -187,13 +208,40 @@ namespace Snake
                 musicList.Update();
             }
 
+            //Toggles music.
+            if ((kbState.IsKeyDown(Keys.Y) && kbStateOld.IsKeyUp(Keys.Y)) ||
+                gpState1.IsButtonDown(Buttons.Y) && gpState1Old.IsButtonUp(Buttons.Y) ||
+                gpState2.IsButtonDown(Buttons.Y) && gpState2Old.IsButtonUp(Buttons.Y) ||
+                gpState3.IsButtonDown(Buttons.Y) && gpState3Old.IsButtonUp(Buttons.Y) ||
+                gpState4.IsButtonDown(Buttons.Y) && gpState4Old.IsButtonUp(Buttons.Y))
+            {
+                soundEnabled = !soundEnabled;
+
+                if (soundEnabled)
+                {
+                    //Starts playing music again when turned back on.
+                    musicList.NextSoundRandom();
+                }
+                else
+                {
+                    //Stops music abruptly when turned off.
+                    musicList.sound.Stop();
+                }
+            }
+
             //If the room is the menu.
             if (room == RoomIndex.rmMenu)
             {
                 //Moving upwards
                 if ((kbState.IsKeyDown(Keys.Up) && kbStateOld.IsKeyUp(Keys.Up)) ||
-                        gpState1.IsButtonDown(Buttons.LeftThumbstickUp) && gpState1Old.IsButtonUp(Buttons.LeftThumbstickUp) ||
-                        gpState2.IsButtonDown(Buttons.LeftThumbstickUp) && gpState2Old.IsButtonUp(Buttons.LeftThumbstickUp))
+                    gpState1.IsButtonDown(Buttons.LeftThumbstickUp) && gpState1Old.IsButtonUp(Buttons.LeftThumbstickUp) ||
+                    gpState1.IsButtonDown(Buttons.DPadUp) && gpState1Old.IsButtonUp(Buttons.DPadUp) ||
+                    gpState2.IsButtonDown(Buttons.LeftThumbstickUp) && gpState2Old.IsButtonUp(Buttons.LeftThumbstickUp) ||
+                    gpState2.IsButtonDown(Buttons.DPadUp) && gpState2Old.IsButtonUp(Buttons.DPadUp) ||
+                    gpState3.IsButtonDown(Buttons.LeftThumbstickUp) && gpState3Old.IsButtonUp(Buttons.LeftThumbstickUp) ||
+                    gpState3.IsButtonDown(Buttons.DPadUp) && gpState3Old.IsButtonUp(Buttons.DPadUp) ||
+                    gpState4.IsButtonDown(Buttons.LeftThumbstickUp) && gpState4Old.IsButtonUp(Buttons.LeftThumbstickUp) ||
+                    gpState4.IsButtonDown(Buttons.DPadUp) && gpState4Old.IsButtonUp(Buttons.DPadUp))
                 {
                     if (soundEnabled)
                     {
@@ -215,9 +263,15 @@ namespace Snake
                 }
 
                 //Moving downwards
-                if ((kbState.IsKeyDown(Keys.Down) && kbStateOld.IsKeyUp(Keys.Down)) ||
-                        gpState1.IsButtonDown(Buttons.LeftThumbstickDown) && gpState1Old.IsButtonUp(Buttons.LeftThumbstickDown) ||
-                        gpState2.IsButtonDown(Buttons.LeftThumbstickDown) && gpState2Old.IsButtonUp(Buttons.LeftThumbstickDown))
+                if (kbState.IsKeyDown(Keys.Down) && kbStateOld.IsKeyUp(Keys.Down) ||
+                    gpState1.IsButtonDown(Buttons.LeftThumbstickDown) && gpState1Old.IsButtonUp(Buttons.LeftThumbstickDown) ||
+                    gpState1.IsButtonDown(Buttons.DPadDown) && gpState1Old.IsButtonUp(Buttons.DPadDown) ||
+                    gpState2.IsButtonDown(Buttons.LeftThumbstickDown) && gpState2Old.IsButtonUp(Buttons.LeftThumbstickDown) ||
+                    gpState2.IsButtonDown(Buttons.DPadDown) && gpState2Old.IsButtonUp(Buttons.DPadDown) ||
+                    gpState3.IsButtonDown(Buttons.LeftThumbstickDown) && gpState3Old.IsButtonUp(Buttons.LeftThumbstickDown) ||
+                    gpState3.IsButtonDown(Buttons.DPadDown) && gpState3Old.IsButtonUp(Buttons.DPadDown) ||
+                    gpState4.IsButtonDown(Buttons.LeftThumbstickDown) && gpState4Old.IsButtonUp(Buttons.LeftThumbstickDown) ||
+                    gpState4.IsButtonDown(Buttons.DPadDown) && gpState4Old.IsButtonUp(Buttons.DPadDown))
                 {
                     if (soundEnabled)
                     {
@@ -239,9 +293,11 @@ namespace Snake
                 }
                 
                 //What happens when the buttons are clicked.
-                if ((kbState.IsKeyDown(Keys.Enter) && kbStateOld.IsKeyUp(Keys.Enter)) ||
-                        gpState1.IsButtonDown(Buttons.A) && gpState1Old.IsButtonUp(Buttons.A) ||
-                        gpState2.IsButtonDown(Buttons.A) && gpState2Old.IsButtonUp(Buttons.A))
+                if (kbState.IsKeyDown(Keys.Enter) && kbStateOld.IsKeyUp(Keys.Enter) ||
+                    gpState1.IsButtonDown(Buttons.A) && gpState1Old.IsButtonUp(Buttons.A) ||
+                    gpState2.IsButtonDown(Buttons.A) && gpState2Old.IsButtonUp(Buttons.A) ||
+                    gpState3.IsButtonDown(Buttons.A) && gpState3Old.IsButtonUp(Buttons.A) ||
+                    gpState4.IsButtonDown(Buttons.A) && gpState4Old.IsButtonUp(Buttons.A))
                 {
                     if (soundEnabled)
                     {
@@ -268,13 +324,49 @@ namespace Snake
             //If the room is the play menu.
             else if (room == RoomIndex.rmMenuPlay)
             {
-                //Switches from one to two-player.
-                if ((kbState.IsKeyDown(Keys.Up) && kbStateOld.IsKeyUp(Keys.Up)) ||
-                        gpState1.IsButtonDown(Buttons.LeftThumbstickUp) && gpState1Old.IsButtonUp(Buttons.LeftThumbstickUp) ||
-                        gpState2.IsButtonDown(Buttons.LeftThumbstickUp) && gpState2Old.IsButtonUp(Buttons.LeftThumbstickUp) ||
-                        kbState.IsKeyDown(Keys.Down) && kbStateOld.IsKeyUp(Keys.Down) ||
-                        gpState1.IsButtonDown(Buttons.LeftThumbstickDown) && gpState1Old.IsButtonUp(Buttons.LeftThumbstickDown) ||
-                        gpState2.IsButtonDown(Buttons.LeftThumbstickDown) && gpState2Old.IsButtonUp(Buttons.LeftThumbstickDown))
+                //Switches between the number of active players (up).
+                if (kbState.IsKeyDown(Keys.Up) && kbStateOld.IsKeyUp(Keys.Up) ||
+                    gpState1.IsButtonDown(Buttons.LeftThumbstickUp) && gpState1Old.IsButtonUp(Buttons.LeftThumbstickUp) ||
+                    gpState1.IsButtonDown(Buttons.DPadUp) && gpState1Old.IsButtonUp(Buttons.DPadUp) ||
+                    gpState2.IsButtonDown(Buttons.LeftThumbstickUp) && gpState2Old.IsButtonUp(Buttons.LeftThumbstickUp) ||
+                    gpState2.IsButtonDown(Buttons.DPadUp) && gpState2Old.IsButtonUp(Buttons.DPadUp) ||
+                    gpState3.IsButtonDown(Buttons.LeftThumbstickUp) && gpState3Old.IsButtonUp(Buttons.LeftThumbstickUp) ||
+                    gpState3.IsButtonDown(Buttons.DPadUp) && gpState3Old.IsButtonUp(Buttons.DPadUp) ||
+                    gpState4.IsButtonDown(Buttons.LeftThumbstickUp) && gpState4Old.IsButtonUp(Buttons.LeftThumbstickUp) ||
+                    gpState4.IsButtonDown(Buttons.DPadUp) && gpState4Old.IsButtonUp(Buttons.DPadUp))
+                {
+                    if (soundEnabled)
+                    {
+                        sfxMenuSwitch.Play();
+                    }
+
+                    switch (button)
+                    {
+                        case (MenuButtons.onePlayer):
+                            button = MenuButtons.fourPlayer;
+                            break;
+                        case (MenuButtons.twoPlayer):
+                            button = MenuButtons.onePlayer;
+                            break;
+                        case (MenuButtons.threePlayer):
+                            button = MenuButtons.twoPlayer;
+                            break;
+                        case (MenuButtons.fourPlayer):
+                            button = MenuButtons.threePlayer;
+                            break;
+                    }
+                }
+
+                //Switches between the number of active players (down).
+                if (kbState.IsKeyDown(Keys.Down) && kbStateOld.IsKeyUp(Keys.Down) ||
+                    gpState1.IsButtonDown(Buttons.LeftThumbstickDown) && gpState1Old.IsButtonUp(Buttons.LeftThumbstickDown) ||
+                    gpState1.IsButtonDown(Buttons.DPadDown) && gpState1Old.IsButtonUp(Buttons.DPadDown) ||
+                    gpState2.IsButtonDown(Buttons.LeftThumbstickDown) && gpState2Old.IsButtonUp(Buttons.LeftThumbstickDown) ||
+                    gpState2.IsButtonDown(Buttons.DPadDown) && gpState2Old.IsButtonUp(Buttons.DPadDown) ||
+                    gpState3.IsButtonDown(Buttons.LeftThumbstickDown) && gpState3Old.IsButtonUp(Buttons.LeftThumbstickDown) ||
+                    gpState3.IsButtonDown(Buttons.DPadDown) && gpState3Old.IsButtonUp(Buttons.DPadDown) ||
+                    gpState4.IsButtonDown(Buttons.LeftThumbstickDown) && gpState4Old.IsButtonUp(Buttons.LeftThumbstickDown) ||
+                    gpState4.IsButtonDown(Buttons.DPadDown) && gpState4Old.IsButtonUp(Buttons.DPadDown))
                 {
                     if (soundEnabled)
                     {
@@ -287,78 +379,116 @@ namespace Snake
                             button = MenuButtons.twoPlayer;
                             break;
                         case (MenuButtons.twoPlayer):
+                            button = MenuButtons.threePlayer;
+                            break;
+                        case (MenuButtons.threePlayer):
+                            button = MenuButtons.fourPlayer;
+                            break;
+                        case (MenuButtons.fourPlayer):
                             button = MenuButtons.onePlayer;
                             break;
                     }
                 }
 
                 //What happens when the buttons are clicked.
-                if ((kbState.IsKeyDown(Keys.Enter) && kbStateOld.IsKeyUp(Keys.Enter)) ||
-                        gpState1.IsButtonDown(Buttons.A) && gpState1Old.IsButtonUp(Buttons.A) ||
-                        gpState2.IsButtonDown(Buttons.A) && gpState2Old.IsButtonUp(Buttons.A))
+                if (kbState.IsKeyDown(Keys.Enter) && kbStateOld.IsKeyUp(Keys.Enter) ||
+                    gpState1.IsButtonDown(Buttons.A) && gpState1Old.IsButtonUp(Buttons.A) ||
+                    gpState2.IsButtonDown(Buttons.A) && gpState2Old.IsButtonUp(Buttons.A) ||
+                    gpState3.IsButtonDown(Buttons.A) && gpState3Old.IsButtonUp(Buttons.A) ||
+                    gpState4.IsButtonDown(Buttons.A) && gpState4Old.IsButtonUp(Buttons.A))
                 {
                     if (soundEnabled)
                     {
                         sfxMenuClick.Play();
                     }
 
-                    //If the one or two-player buttons are pressed.
-                    if (button == MenuButtons.onePlayer || button == MenuButtons.twoPlayer)
+                    //If a number-of-players button is pressed.
+                    if (button == MenuButtons.onePlayer ||
+                        button == MenuButtons.twoPlayer ||
+                        button == MenuButtons.threePlayer ||
+                        button == MenuButtons.fourPlayer)
                     {
-                        //Resets important pieces of information.
-                        playerOneSnake.Clear(); //Clears the first snake's list.
-                        playerTwoSnake.Clear(); //Clears the second snake's list.
-                        gamePoints = new List<Point>(); //Removes all dots from the screen.
-                        gamePointsDelete = new List<Point>(); //Clears the dot deletion list.
-                        if (gridXSize == 20) //A small grid.
+                        //Clears the list of blocks owned by each snake.
+                        playerOneSnake.Clear();
+                        playerTwoSnake.Clear();
+                        playerThreeSnake.Clear();
+                        playerFourSnake.Clear();
+
+                        //Removes dots from the screen and the dot deletion list.
+                        gamePoints = new List<Point>();
+                        gamePointsDelete = new List<Point>();
+
+                        //Resets gameplay refresh speed based on grid size.
+                        if (gridXSize == 20)
                         {
-                            tickDelay = 12; //Resets the 'speed' of the game.
+                            tickDelay = 12;
                         }
-                        else if (gridXSize == 40) //A medium grid.
+                        else if (gridXSize == 40)
                         {
-                            tickDelay = 10; //Resets the 'speed' of the game.
+                            tickDelay = 10;
                         }
-                        else if (gridXSize == 80) //A large grid.
+                        else if (gridXSize == 80)
                         {
-                            tickDelay = 8; //Resets the 'speed' of the game.
+                            tickDelay = 8;
                         }
-                        tick = 0; //Resets the current tick.
-                        playerOneDir = Direction.none; //Resets the first snake's direction.
-                        playerTwoDir = Direction.none; //Resets the second snake's direction.
+
+                        //Resets time until game refreshes.
+                        tick = 0;
+
+                        //Resets snake directions.
+                        playerOneDir = Direction.None;
+                        playerTwoDir = Direction.None;
+                        playerThreeDir = Direction.None;
+                        playerFourDir = Direction.None;
 
                         //Initializes the size of the grid in pixels.
                         gridXPixels = scrWidth / gridXSize;
-                        gridYPixels = scrHeight / gridYSize; 
+                        gridYPixels = scrHeight / gridYSize;
 
+                        //Sets the number of active players.
                         if (button == MenuButtons.onePlayer)
                         {
-                            twoPlayer = false;
-
-                            //Sets the position of the snake randomly.
-                            playerOneSnake.Enqueue(new Vector2(
-                                chance.Next(0, gridXSize) * gridXPixels,
-                                chance.Next(0, gridYSize) * gridYPixels));
+                            numPlayers = 1;
                         }
                         else if (button == MenuButtons.twoPlayer)
                         {
-                            twoPlayer = true;
-
-                            //Sets the default size of snakes to one and places them randomly.
-                            float tempXPos1 = chance.Next(0, gridXSize) * gridXPixels;
-                            float tempYPos1 = chance.Next(0, gridYSize) * gridYPixels;
-                            float tempXPos2 = tempXPos1;
-                            float tempYPos2 = tempYPos1;
-                            while (tempXPos1 == tempXPos2 || tempYPos1 == tempYPos2)
-                            {
-                                tempXPos2 = chance.Next(0, gridXSize) * gridXPixels;
-                                tempYPos2 = chance.Next(0, gridYSize) * gridYPixels;
-                            }
-                            //Sets the position for each snake.
-                            playerOneSnake.Enqueue(new Vector2(tempXPos1, tempYPos1));
-                            playerTwoSnake.Enqueue(new Vector2(tempXPos2, tempYPos2));
+                            numPlayers = 2;
+                        }
+                        else if (button == MenuButtons.threePlayer)
+                        {
+                            numPlayers = 3;
+                        }
+                        else if (button == MenuButtons.fourPlayer)
+                        {
+                            numPlayers = 4;
                         }
 
-                        //Sets the button to 'play' when/if the player returns to the main menu.
+                        //Positions each snake randomly so none are overlapping.
+                        List<Vector2> snakePositions = new List<Vector2>();
+
+                        Vector2 tempPos = new Vector2(
+                            (int)(rng.Next(0, gridXSize) * gridXPixels),
+                            (int)(rng.Next(0, gridYSize) * gridYPixels));
+
+                        for (int i = 0; i < numPlayers; i++)
+                        {
+                            while (snakePositions.Where(o => o.Equals(tempPos)).Count() > 0)
+                            {
+                                tempPos = new Vector2(
+                                    (int)(rng.Next(0, gridXSize) * gridXPixels),
+                                    (int)(rng.Next(0, gridYSize) * gridYPixels));
+                            }
+
+                            snakePositions.Add(tempPos);
+                        }
+
+                        //Sets each position.
+                        playerOneSnake.Enqueue(snakePositions[0]);
+                        if (numPlayers >= 2) { playerTwoSnake.Enqueue(snakePositions[1]); }
+                        if (numPlayers >= 3) { playerThreeSnake.Enqueue(snakePositions[2]); }
+                        if (numPlayers >= 4) { playerFourSnake.Enqueue(snakePositions[3]); }
+
+                        //Sets the button to 'play' if the player returns to the main menu.
                         button = MenuButtons.play;
 
                         //Sets the pixels in the grid and begins gameplay.                        
@@ -370,9 +500,11 @@ namespace Snake
             else if (room == RoomIndex.rmMenuInfo)
             {
                 //Exits back to the main menu.
-                if ((kbState.IsKeyDown(Keys.Enter) && kbStateOld.IsKeyUp(Keys.Enter)) ||
-                        gpState1.IsButtonDown(Buttons.A) && gpState1Old.IsButtonUp(Buttons.A) ||
-                        gpState2.IsButtonDown(Buttons.A) && gpState2Old.IsButtonUp(Buttons.A))
+                if (kbState.IsKeyDown(Keys.Enter) && kbStateOld.IsKeyUp(Keys.Enter) ||
+                    gpState1.IsButtonDown(Buttons.A) && gpState1Old.IsButtonUp(Buttons.A) ||
+                    gpState2.IsButtonDown(Buttons.A) && gpState2Old.IsButtonUp(Buttons.A) ||
+                    gpState3.IsButtonDown(Buttons.A) && gpState3Old.IsButtonUp(Buttons.A) ||
+                    gpState4.IsButtonDown(Buttons.A) && gpState4Old.IsButtonUp(Buttons.A))
                 {
                     if (soundEnabled)
                     {
@@ -386,9 +518,15 @@ namespace Snake
             else if (room == RoomIndex.rmMenuOps)
             {
                 //Moving upwards
-                if ((kbState.IsKeyDown(Keys.Up) && kbStateOld.IsKeyUp(Keys.Up)) ||
-                        gpState1.IsButtonDown(Buttons.LeftThumbstickUp) && gpState1Old.IsButtonUp(Buttons.LeftThumbstickUp) ||
-                        gpState2.IsButtonDown(Buttons.LeftThumbstickUp) && gpState2Old.IsButtonUp(Buttons.LeftThumbstickUp))
+                if (kbState.IsKeyDown(Keys.Up) && kbStateOld.IsKeyUp(Keys.Up) ||
+                    gpState1.IsButtonDown(Buttons.LeftThumbstickUp) && gpState1Old.IsButtonUp(Buttons.LeftThumbstickUp) ||
+                    gpState1.IsButtonDown(Buttons.DPadUp) && gpState1Old.IsButtonUp(Buttons.DPadUp) ||
+                    gpState2.IsButtonDown(Buttons.LeftThumbstickUp) && gpState2Old.IsButtonUp(Buttons.LeftThumbstickUp) ||
+                    gpState2.IsButtonDown(Buttons.DPadUp) && gpState2Old.IsButtonUp(Buttons.DPadUp) ||
+                    gpState3.IsButtonDown(Buttons.LeftThumbstickUp) && gpState3Old.IsButtonUp(Buttons.LeftThumbstickUp) ||
+                    gpState3.IsButtonDown(Buttons.DPadUp) && gpState3Old.IsButtonUp(Buttons.DPadUp) ||
+                    gpState4.IsButtonDown(Buttons.LeftThumbstickUp) && gpState4Old.IsButtonUp(Buttons.LeftThumbstickUp) ||
+                    gpState4.IsButtonDown(Buttons.DPadUp) && gpState4Old.IsButtonUp(Buttons.DPadUp))
                 {
                     if (soundEnabled)
                     {
@@ -416,9 +554,15 @@ namespace Snake
                 }
 
                 //Moving downwards
-                if ((kbState.IsKeyDown(Keys.Down) && kbStateOld.IsKeyUp(Keys.Down)) ||
-                        gpState1.IsButtonDown(Buttons.LeftThumbstickDown) && gpState1Old.IsButtonUp(Buttons.LeftThumbstickDown) ||
-                        gpState2.IsButtonDown(Buttons.LeftThumbstickDown) && gpState2Old.IsButtonUp(Buttons.LeftThumbstickDown))
+                if (kbState.IsKeyDown(Keys.Down) && kbStateOld.IsKeyUp(Keys.Down) ||
+                    gpState1.IsButtonDown(Buttons.LeftThumbstickDown) && gpState1Old.IsButtonUp(Buttons.LeftThumbstickDown) ||
+                    gpState1.IsButtonDown(Buttons.DPadDown) && gpState1Old.IsButtonUp(Buttons.DPadDown) ||
+                    gpState2.IsButtonDown(Buttons.LeftThumbstickDown) && gpState2Old.IsButtonUp(Buttons.LeftThumbstickDown) ||
+                    gpState2.IsButtonDown(Buttons.DPadDown) && gpState2Old.IsButtonUp(Buttons.DPadDown) ||
+                    gpState3.IsButtonDown(Buttons.LeftThumbstickDown) && gpState3Old.IsButtonUp(Buttons.LeftThumbstickDown) ||
+                    gpState3.IsButtonDown(Buttons.DPadDown) && gpState3Old.IsButtonUp(Buttons.DPadDown) ||
+                    gpState4.IsButtonDown(Buttons.LeftThumbstickDown) && gpState4Old.IsButtonUp(Buttons.LeftThumbstickDown) ||
+                    gpState4.IsButtonDown(Buttons.DPadDown) && gpState4Old.IsButtonUp(Buttons.DPadDown))
                 {
                     if (soundEnabled)
                     {
@@ -446,9 +590,11 @@ namespace Snake
                 }
 
                 //Defines what happens when each button is pressed.
-                if ((kbState.IsKeyDown(Keys.Enter) && kbStateOld.IsKeyUp(Keys.Enter)) ||
-                        gpState1.IsButtonDown(Buttons.A) && gpState1Old.IsButtonUp(Buttons.A) ||
-                        gpState2.IsButtonDown(Buttons.A) && gpState2Old.IsButtonUp(Buttons.A))
+                if (kbState.IsKeyDown(Keys.Enter) && kbStateOld.IsKeyUp(Keys.Enter) ||
+                    gpState1.IsButtonDown(Buttons.A) && gpState1Old.IsButtonUp(Buttons.A) ||
+                    gpState2.IsButtonDown(Buttons.A) && gpState2Old.IsButtonUp(Buttons.A) ||
+                    gpState3.IsButtonDown(Buttons.A) && gpState3Old.IsButtonUp(Buttons.A) ||
+                    gpState4.IsButtonDown(Buttons.A) && gpState4Old.IsButtonUp(Buttons.A))
                 {
                     if (soundEnabled)
                     {
@@ -481,10 +627,10 @@ namespace Snake
                     case (MenuButtons.toggleGrid):
                         room = RoomIndex.rmMenu;
                         button = MenuButtons.play;
-                        gridEnabled = !gridEnabled; //inverts the boolean.
+                        gridEnabled = !gridEnabled;
                         break;
                     case (MenuButtons.toggleSfx):
-                        soundEnabled = !soundEnabled; //Inverts the boolean.
+                        soundEnabled = !soundEnabled;
 
                         if (soundEnabled)
                         {
@@ -504,38 +650,44 @@ namespace Snake
             else if (room == RoomIndex.rmMain)
             {
                 //Checks if a player has won.
-                if (winner != Player.all)
+                if (winner != Player.All)
                 {
                     //Returns to the menu if enter or start is pressed.
-                    if ((kbState.IsKeyUp(Keys.Enter) && kbStateOld.IsKeyDown(Keys.Enter)) ||
+                    if (kbState.IsKeyUp(Keys.Enter) && kbStateOld.IsKeyDown(Keys.Enter) ||
                         gpState1.IsButtonUp(Buttons.Start) && gpState1Old.IsButtonDown(Buttons.Start) ||
-                        gpState2.IsButtonUp(Buttons.Start) && gpState2Old.IsButtonDown(Buttons.Start))
+                        gpState2.IsButtonUp(Buttons.Start) && gpState2Old.IsButtonDown(Buttons.Start) ||
+                        gpState3.IsButtonUp(Buttons.Start) && gpState3Old.IsButtonDown(Buttons.Start) ||
+                        gpState4.IsButtonUp(Buttons.Start) && gpState4Old.IsButtonDown(Buttons.Start))
                     {
                         if (soundEnabled)
                         {
                             sfxMenuClick.Play();
                         }
 
-                        //Resets the value of who won.
-                        winner = Player.all;
+                        //Resets win/loss statuses.
+                        losers.Clear();
+                        winner = Player.All;
 
                         //Changes the room to the menu.
                         room = RoomIndex.rmMenu;
                     }
+
                     //Suspends functionality when a player has won (like pausing).
                     return;
                 }
 
                 //Gets whether or not the game is paused.
-                if ((kbState.IsKeyDown(Keys.P) && kbStateOld.IsKeyUp(Keys.P)) ||
-                        gpState1.IsButtonDown(Buttons.B) && gpState1Old.IsButtonUp(Buttons.B) ||
-                        gpState2.IsButtonDown(Buttons.B) && gpState2Old.IsButtonUp(Buttons.B))
+                if (kbState.IsKeyDown(Keys.P) && kbStateOld.IsKeyUp(Keys.P) ||
+                    gpState1.IsButtonDown(Buttons.B) && gpState1Old.IsButtonUp(Buttons.B) ||
+                    gpState2.IsButtonDown(Buttons.B) && gpState2Old.IsButtonUp(Buttons.B) ||
+                    gpState3.IsButtonDown(Buttons.B) && gpState3Old.IsButtonUp(Buttons.B) ||
+                    gpState4.IsButtonDown(Buttons.B) && gpState4Old.IsButtonUp(Buttons.B))
                 {
-                    if (paused && winner == Player.all)
+                    if (paused && winner == Player.All)
                     {
                         paused = false;
                     }
-                    else if (!paused && winner == Player.all)
+                    else if (!paused && winner == Player.All)
                     {
                         paused = true;
                     }
@@ -548,102 +700,205 @@ namespace Snake
                 }
 
                 //Processes gamepad input for player 1.
-                if (gpState1.ThumbSticks.Left.X > 0 &&
-                    gpState1.ThumbSticks.Left.X > Math.Abs(gpState1.ThumbSticks.Left.Y))
+                if (!losers.Contains(Player.One))
                 {
-                    playerOneDir = Direction.right;
-                }
-                else if (gpState1.ThumbSticks.Left.X < 0 &&
-                    gpState1.ThumbSticks.Left.X < -Math.Abs(gpState1.ThumbSticks.Left.Y))
-                {
-                    playerOneDir = Direction.left;
-                }
-                else if (gpState1.ThumbSticks.Left.Y < 0 &&
-                    gpState1.ThumbSticks.Left.Y < Math.Abs(gpState1.ThumbSticks.Left.X))
-                {
-                    playerOneDir = Direction.down;
-                }
-                else if (gpState1.ThumbSticks.Left.Y > 0 &&
-                    gpState1.ThumbSticks.Left.Y > Math.Abs(gpState1.ThumbSticks.Left.X))
-                {
-                    playerOneDir = Direction.up;
-                }
-                if (twoPlayer)
-                {
-                    //Processes gamepad input for player 2.
-                    if (gpState2.ThumbSticks.Left.X > 0 &&
-                        gpState2.ThumbSticks.Left.X > Math.Abs(gpState2.ThumbSticks.Left.Y))
+                    if ((gpState1.ThumbSticks.Left.X > 0 &&
+                        gpState1.ThumbSticks.Left.X > Math.Abs(gpState1.ThumbSticks.Left.Y)) ||
+                        (gpState1.IsButtonDown(Buttons.DPadRight) && gpState1Old.IsButtonUp(Buttons.DPadRight)))
                     {
-                        playerTwoDir = Direction.right;
+                        playerOneDir = Direction.Right;
                     }
-                    else if (gpState2.ThumbSticks.Left.X < 0 &&
-                        gpState2.ThumbSticks.Left.X < -Math.Abs(gpState2.ThumbSticks.Left.Y))
+                    else if ((gpState1.ThumbSticks.Left.X < 0 &&
+                        gpState1.ThumbSticks.Left.X < -Math.Abs(gpState1.ThumbSticks.Left.Y)) ||
+                        (gpState1.IsButtonDown(Buttons.DPadLeft) && gpState1Old.IsButtonUp(Buttons.DPadLeft)))
                     {
-                        playerTwoDir = Direction.left;
+                        playerOneDir = Direction.Left;
                     }
-                    else if (gpState2.ThumbSticks.Left.Y < 0 &&
-                        gpState2.ThumbSticks.Left.Y < Math.Abs(gpState2.ThumbSticks.Left.X))
+                    else if ((gpState1.ThumbSticks.Left.Y < 0 &&
+                        gpState1.ThumbSticks.Left.Y < Math.Abs(gpState1.ThumbSticks.Left.X)) ||
+                        (gpState1.IsButtonDown(Buttons.DPadDown) && gpState1Old.IsButtonUp(Buttons.DPadDown)))
                     {
-                        playerTwoDir = Direction.down;
+                        playerOneDir = Direction.Down;
                     }
-                    else if (gpState2.ThumbSticks.Left.Y > 0 &&
-                        gpState2.ThumbSticks.Left.Y > Math.Abs(gpState2.ThumbSticks.Left.X))
+                    else if ((gpState1.ThumbSticks.Left.Y > 0 &&
+                        gpState1.ThumbSticks.Left.Y > Math.Abs(gpState1.ThumbSticks.Left.X)) ||
+                        (gpState1.IsButtonDown(Buttons.DPadUp) && gpState1Old.IsButtonUp(Buttons.DPadUp)))
                     {
-                        playerTwoDir = Direction.up;
+                        playerOneDir = Direction.Up;
+                    }
+                }
+                //Processes gamepad input for player 2.
+                if (!losers.Contains(Player.Two))
+                {
+                    if ((gpState2.ThumbSticks.Left.X > 0 &&
+                        gpState2.ThumbSticks.Left.X > Math.Abs(gpState2.ThumbSticks.Left.Y)) ||
+                        (gpState2.IsButtonDown(Buttons.DPadRight) && gpState2Old.IsButtonUp(Buttons.DPadRight)))
+                    {
+                        playerTwoDir = Direction.Right;
+                    }
+                    else if ((gpState2.ThumbSticks.Left.X < 0 &&
+                        gpState2.ThumbSticks.Left.X < -Math.Abs(gpState2.ThumbSticks.Left.Y)) ||
+                        (gpState2.IsButtonDown(Buttons.DPadLeft) && gpState2Old.IsButtonUp(Buttons.DPadLeft)))
+                    {
+                        playerTwoDir = Direction.Left;
+                    }
+                    else if ((gpState2.ThumbSticks.Left.Y < 0 &&
+                        gpState2.ThumbSticks.Left.Y < Math.Abs(gpState2.ThumbSticks.Left.X)) ||
+                        (gpState2.IsButtonDown(Buttons.DPadDown) && gpState2Old.IsButtonUp(Buttons.DPadDown)))
+                    {
+                        playerTwoDir = Direction.Down;
+                    }
+                    else if ((gpState2.ThumbSticks.Left.Y > 0 &&
+                        gpState2.ThumbSticks.Left.Y > Math.Abs(gpState2.ThumbSticks.Left.X)) ||
+                        (gpState2.IsButtonDown(Buttons.DPadUp) && gpState2Old.IsButtonUp(Buttons.DPadUp)))
+                    {
+                        playerTwoDir = Direction.Up;
+                    }
+                }
+                //Processes gamepad input for player 3.
+                if (!losers.Contains(Player.Three))
+                {
+                    if ((gpState3.ThumbSticks.Left.X > 0 &&
+                        gpState3.ThumbSticks.Left.X > Math.Abs(gpState3.ThumbSticks.Left.Y)) ||
+                        (gpState3.IsButtonDown(Buttons.DPadRight) && gpState3Old.IsButtonUp(Buttons.DPadRight)))
+                    {
+                        playerThreeDir = Direction.Right;
+                    }
+                    else if ((gpState3.ThumbSticks.Left.X < 0 &&
+                        gpState3.ThumbSticks.Left.X < -Math.Abs(gpState3.ThumbSticks.Left.Y)) ||
+                        (gpState3.IsButtonDown(Buttons.DPadLeft) && gpState3Old.IsButtonUp(Buttons.DPadLeft)))
+                    {
+                        playerThreeDir = Direction.Left;
+                    }
+                    else if ((gpState3.ThumbSticks.Left.Y < 0 &&
+                        gpState3.ThumbSticks.Left.Y < Math.Abs(gpState3.ThumbSticks.Left.X)) ||
+                        (gpState3.IsButtonDown(Buttons.DPadDown) && gpState3Old.IsButtonUp(Buttons.DPadDown)))
+                    {
+                        playerThreeDir = Direction.Down;
+                    }
+                    else if ((gpState3.ThumbSticks.Left.Y > 0 &&
+                        gpState3.ThumbSticks.Left.Y > Math.Abs(gpState3.ThumbSticks.Left.X)) ||
+                        (gpState3.IsButtonDown(Buttons.DPadUp) && gpState3Old.IsButtonUp(Buttons.DPadUp)))
+                    {
+                        playerThreeDir = Direction.Up;
+                    }
+                }
+                //Processes gamepad input for player 4.
+                if (!losers.Contains(Player.Four))
+                {
+                    if ((gpState4.ThumbSticks.Left.X > 0 &&
+                        gpState4.ThumbSticks.Left.X > Math.Abs(gpState4.ThumbSticks.Left.Y)) ||
+                        (gpState4.IsButtonDown(Buttons.DPadRight) && gpState4Old.IsButtonUp(Buttons.DPadRight)))
+                    {
+                        playerFourDir = Direction.Right;
+                    }
+                    else if ((gpState4.ThumbSticks.Left.X < 0 &&
+                        gpState4.ThumbSticks.Left.X < -Math.Abs(gpState4.ThumbSticks.Left.Y)) ||
+                        (gpState4.IsButtonDown(Buttons.DPadLeft) && gpState4Old.IsButtonUp(Buttons.DPadLeft)))
+                    {
+                        playerFourDir = Direction.Left;
+                    }
+                    else if ((gpState4.ThumbSticks.Left.Y < 0 &&
+                        gpState4.ThumbSticks.Left.Y < Math.Abs(gpState4.ThumbSticks.Left.X)) ||
+                        (gpState4.IsButtonDown(Buttons.DPadDown) && gpState4Old.IsButtonUp(Buttons.DPadDown)))
+                    {
+                        playerFourDir = Direction.Down;
+                    }
+                    else if ((gpState4.ThumbSticks.Left.Y > 0 &&
+                        gpState4.ThumbSticks.Left.Y > Math.Abs(gpState4.ThumbSticks.Left.X)) ||
+                        (gpState4.IsButtonDown(Buttons.DPadUp) && gpState4Old.IsButtonUp(Buttons.DPadUp)))
+                    {
+                        playerFourDir = Direction.Up;
                     }
                 }
                 //Updates the keyboard for player 1.
-                if (kbState.IsKeyDown(Keys.D))
+                if (!losers.Contains(Player.One))
                 {
-                    playerOneDir = Direction.right;
+                    if (kbState.IsKeyDown(Keys.D))
+                    {
+                        playerOneDir = Direction.Right;
+                    }
+                    if (kbState.IsKeyDown(Keys.W))
+                    {
+                        playerOneDir = Direction.Up;
+                    }
+                    if (kbState.IsKeyDown(Keys.A))
+                    {
+                        playerOneDir = Direction.Left;
+                    }
+                    if (kbState.IsKeyDown(Keys.S))
+                    {
+                        playerOneDir = Direction.Down;
+                    }
                 }
-                if (kbState.IsKeyDown(Keys.W))
-                {
-                    playerOneDir = Direction.up;
-                }
-                if (kbState.IsKeyDown(Keys.A))
-                {
-                    playerOneDir = Direction.left;
-                }
-                if (kbState.IsKeyDown(Keys.S))
-                {
-                    playerOneDir = Direction.down;
-                }
-                if (twoPlayer)
+                if (!losers.Contains(Player.Two) && numPlayers >= 2)
                 {
                     //Updates the keyboard for player 2.
                     if (kbState.IsKeyDown(Keys.Right))
                     {
-                        playerTwoDir = Direction.right;
+                        playerTwoDir = Direction.Right;
                     }
                     if (kbState.IsKeyDown(Keys.Up))
                     {
-                        playerTwoDir = Direction.up;
+                        playerTwoDir = Direction.Up;
                     }
                     if (kbState.IsKeyDown(Keys.Left))
                     {
-                        playerTwoDir = Direction.left;
+                        playerTwoDir = Direction.Left;
                     }
                     if (kbState.IsKeyDown(Keys.Down))
                     {
-                        playerTwoDir = Direction.down;
+                        playerTwoDir = Direction.Down;
+                    }
+                }
+                if (!losers.Contains(Player.Three) && numPlayers >= 3)
+                {
+                    //Updates the keyboard for player 3.
+                    if (kbState.IsKeyDown(Keys.L))
+                    {
+                        playerThreeDir = Direction.Right;
+                    }
+                    if (kbState.IsKeyDown(Keys.I))
+                    {
+                        playerThreeDir = Direction.Up;
+                    }
+                    if (kbState.IsKeyDown(Keys.J))
+                    {
+                        playerThreeDir = Direction.Left;
+                    }
+                    if (kbState.IsKeyDown(Keys.K))
+                    {
+                        playerThreeDir = Direction.Down;
+                    }
+                }
+                if (!losers.Contains(Player.Four) && numPlayers >= 4)
+                {
+                    //Updates the keyboard for player 4.
+                    if (kbState.IsKeyDown(Keys.H))
+                    {
+                        playerFourDir = Direction.Right;
+                    }
+                    if (kbState.IsKeyDown(Keys.T))
+                    {
+                        playerFourDir = Direction.Up;
+                    }
+                    if (kbState.IsKeyDown(Keys.F))
+                    {
+                        playerFourDir = Direction.Left;
+                    }
+                    if (kbState.IsKeyDown(Keys.G))
+                    {
+                        playerFourDir = Direction.Down;
                     }
                 }
 
-                //Doesn't start the game until both players have a direction.
-                if (twoPlayer)
+                //Doesn't start the game until all players have a direction.
+                if ((numPlayers >= 1 && playerOneDir == Direction.None) ||
+                    (numPlayers >= 2 && playerTwoDir == Direction.None) ||
+                    (numPlayers >= 3 && playerThreeDir == Direction.None) ||
+                    (numPlayers >= 4 && playerFourDir == Direction.None))
                 {
-                    if (playerOneDir == Direction.none || playerTwoDir == Direction.none)
-                    {
-                        return;
-                    }
-                }
-                else
-                {
-                    if (playerOneDir == Direction.none)
-                    {
-                        return;
-                    }
+                    return;
                 }
 
                 //Updates the timer that affects the overall update.
@@ -656,7 +911,7 @@ namespace Snake
                 }
 
                 //Spawns points randomly and spawns a point if there are none.
-                if ((gamePoints.Count < 2 && chance.Next(0, 1000) == 1) ||
+                if ((gamePoints.Count < 2 && rng.Next(0, 1000) == 1) ||
                     gamePoints.Count == 0)
                 {
                     //temporary variables to store the position on the screen.
@@ -664,29 +919,50 @@ namespace Snake
                     bool tempvalid = false;
 
                     //As long as there is open space on the screen.
-                    if (playerOneSnake.Count + playerTwoSnake.Count < gridXSize * gridYSize)
+                    if (playerOneSnake.Count + playerTwoSnake.Count +
+                        playerThreeSnake.Count + playerFourSnake.Count < gridXSize * gridYSize)
                     {
                         //If tempvalid is false.
                         while (!tempvalid)
                         {
                             //Gets new values for the positions.
-                            tempPosX = (int)(chance.Next(0, gridXSize) * gridXPixels);
-                            tempPosY = (int)(chance.Next(0, gridYSize) * gridYPixels);
+                            tempPosX = (int)(rng.Next(0, gridXSize) * gridXPixels);
+                            tempPosY = (int)(rng.Next(0, gridYSize) * gridYPixels);
 
                             //Checks to see if those positions are occupied.
                             //If so, moves to another spot on the screen.
                             for (int i = 0; i < playerOneSnake.Count - 1; i++)
                             {
-                                if (new Vector2(tempPosX, tempPosY) == playerOneSnake.ElementAt<Vector2>(i))
+                                if (new Vector2(tempPosX, tempPosY).Equals(playerOneSnake.ElementAt(i)))
                                 {
                                     continue;
                                 }
                             }
-                            if (twoPlayer)
+                            if (numPlayers >= 2)
                             {
                                 for (int i = 0; i < playerTwoSnake.Count - 1; i++)
                                 {
-                                    if (new Vector2(tempPosX, tempPosY) == playerTwoSnake.ElementAt<Vector2>(i))
+                                    if (new Vector2(tempPosX, tempPosY).Equals(playerTwoSnake.ElementAt(i)))
+                                    {
+                                        continue;
+                                    }
+                                }
+                            }
+                            if (numPlayers >= 3)
+                            {
+                                for (int i = 0; i < playerThreeSnake.Count - 1; i++)
+                                {
+                                    if (new Vector2(tempPosX, tempPosY).Equals(playerThreeSnake.ElementAt(i)))
+                                    {
+                                        continue;
+                                    }
+                                }
+                            }
+                            if (numPlayers >= 4)
+                            {
+                                for (int i = 0; i < playerFourSnake.Count - 1; i++)
+                                {
+                                    if (new Vector2(tempPosX, tempPosY).Equals(playerFourSnake.ElementAt(i)))
                                     {
                                         continue;
                                     }
@@ -706,6 +982,7 @@ namespace Snake
                 {
                     //Updates all points.
                     gamePoints[i].Update();
+
                     //Checks for deleted points.
                     if (gamePoints[i].markedForDeletion == true)
                     {
@@ -719,122 +996,153 @@ namespace Snake
                         //Keeps track of the player's direction.
                         float tempXPlayer1 = 0, tempYPlayer1 = 0;
                         float tempXPlayer2 = 0, tempYPlayer2 = 0;
+                        float tempXPlayer3 = 0, tempYPlayer3 = 0;
+                        float tempXPlayer4 = 0, tempYPlayer4 = 0;
 
-                        //Tries to determine the movement of player one.
+                        //Tries to determine the movement of each player.
                         switch (playerOneDir)
                         {
-                            case (Direction.right):
+                            case (Direction.Right):
                                 tempXPlayer1 = gridXPixels;
                                 break;
-                            case (Direction.down):
+                            case (Direction.Down):
                                 tempYPlayer1 = gridYPixels;
                                 break;
-                            case (Direction.left):
+                            case (Direction.Left):
                                 tempXPlayer1 = -gridXPixels;
                                 break;
-                            case (Direction.up):
+                            case (Direction.Up):
                                 tempYPlayer1 = -gridYPixels;
                                 break;
                         }
-
-                        //Tries to determine the movement of player two.
                         switch (playerTwoDir)
                         {
-                            case (Direction.right):
+                            case (Direction.Right):
                                 tempXPlayer2 = gridXPixels;
                                 break;
-                            case (Direction.down):
+                            case (Direction.Down):
                                 tempYPlayer2 = gridYPixels;
                                 break;
-                            case (Direction.left):
+                            case (Direction.Left):
                                 tempXPlayer2 = -gridXPixels;
                                 break;
-                            case (Direction.up):
+                            case (Direction.Up):
                                 tempYPlayer2 = -gridYPixels;
                                 break;
                         }
-
-                        if (gamePoints[i].playerWhoCaptured == Player.one)
+                        switch (playerThreeDir)
                         {
-                            //Reverses the snake so that a block is added to the end of it.
-                            playerOneSnake = new Queue<Vector2>(playerOneSnake.Reverse<Vector2>());
-                            playerOneSnake.Enqueue(playerOneDeleted);
-                            playerOneSnake = new Queue<Vector2>(playerOneSnake.Reverse<Vector2>());
-
-                            if (gridXSize == 20) //A small grid.
-                            {
-                                //Increases the speed of the game.
-                                if (tickDelay > 10)
-                                {
-                                    tickDelay -= 0.5f;
-                                }
-                                else if (tickDelay > 5)
-                                {
-                                    tickDelay -= 0.5f;
-                                }
-                                else if (tickDelay > 2)
-                                {
-                                    tickDelay -= 0.25f;
-                                }
-                            }
-                            else if (gridXSize == 40) //A medium grid.
-                            {
-                                //Increases the speed of the game.
-                                if (tickDelay > 10)
-                                {
-                                    tickDelay -= 0.75f;
-                                }
-                                else if (tickDelay > 5)
-                                {
-                                    tickDelay -= 0.5f;
-                                }
-                                else if (tickDelay > 2)
-                                {
-                                    tickDelay -= 0.25f;
-                                }
-                            }
-                            else if (gridXSize == 80) //A large grid.
-                            {
-                                //Increases the speed of the game.
-                                if (tickDelay > 10)
-                                {
-                                    tickDelay -= 1;
-                                }
-                                else if (tickDelay > 3)
-                                {
-                                    tickDelay -= 0.5f;
-                                }
-                                else if (tickDelay > 1)
-                                {
-                                    tickDelay -= 0.25f;
-                                }
-                            }
+                            case (Direction.Right):
+                                tempXPlayer3 = gridXPixels;
+                                break;
+                            case (Direction.Down):
+                                tempYPlayer3 = gridYPixels;
+                                break;
+                            case (Direction.Left):
+                                tempXPlayer3 = -gridXPixels;
+                                break;
+                            case (Direction.Up):
+                                tempYPlayer3 = -gridYPixels;
+                                break;
                         }
-                        else if (gamePoints[i].playerWhoCaptured == Player.two)
+                        switch (playerFourDir)
                         {
-                            //Reverses the snake so that a block is added to the end of it.
-                            playerTwoSnake = new Queue<Vector2>(playerTwoSnake.Reverse<Vector2>());
-                            playerTwoSnake.Enqueue(playerTwoDeleted);
-                            playerTwoSnake = new Queue<Vector2>(playerTwoSnake.Reverse<Vector2>());
+                            case (Direction.Right):
+                                tempXPlayer4 = gridXPixels;
+                                break;
+                            case (Direction.Down):
+                                tempYPlayer4 = gridYPixels;
+                                break;
+                            case (Direction.Left):
+                                tempXPlayer4 = -gridXPixels;
+                                break;
+                            case (Direction.Up):
+                                tempYPlayer4 = -gridYPixels;
+                                break;
+                        }
 
-                            //Increases the speed of the game.
+                        //Increases the game speed based on grid size.
+                        if (gridXSize == 20)
+                        {
                             if (tickDelay > 10)
                             {
                                 tickDelay -= 0.5f;
                             }
                             else if (tickDelay > 5)
                             {
+                                tickDelay -= 0.5f;
+                            }
+                            else if (tickDelay > 2)
+                            {
                                 tickDelay -= 0.25f;
                             }
                         }
+                        else if (gridXSize == 40)
+                        {
+                            if (tickDelay > 10)
+                            {
+                                tickDelay -= 0.75f;
+                            }
+                            else if (tickDelay > 5)
+                            {
+                                tickDelay -= 0.5f;
+                            }
+                            else if (tickDelay > 2)
+                            {
+                                tickDelay -= 0.25f;
+                            }
+                        }
+                        else if (gridXSize == 80)
+                        {
+                            if (tickDelay > 10)
+                            {
+                                tickDelay -= 1;
+                            }
+                            else if (tickDelay > 3)
+                            {
+                                tickDelay -= 0.5f;
+                            }
+                            else if (tickDelay > 1)
+                            {
+                                tickDelay -= 0.25f;
+                            }
+                        }
+
+                        //Reverses the capturing snake to add a block to it.
+                        if (gamePoints[i].playerWhoCaptured == Player.One)
+                        {
+                            playerOneSnake = new Queue<Vector2>(playerOneSnake.Reverse());
+                            playerOneSnake.Enqueue(playerOneDeleted);
+                            playerOneSnake = new Queue<Vector2>(playerOneSnake.Reverse());
+                        }
+                        else if (gamePoints[i].playerWhoCaptured == Player.Two)
+                        {
+                            playerTwoSnake = new Queue<Vector2>(playerTwoSnake.Reverse());
+                            playerTwoSnake.Enqueue(playerTwoDeleted);
+                            playerTwoSnake = new Queue<Vector2>(playerTwoSnake.Reverse());
+                        }
+                        else if (gamePoints[i].playerWhoCaptured == Player.Three)
+                        {
+                            playerThreeSnake = new Queue<Vector2>(playerThreeSnake.Reverse());
+                            playerThreeSnake.Enqueue(playerThreeDeleted);
+                            playerThreeSnake = new Queue<Vector2>(playerThreeSnake.Reverse());
+                        }
+                        else if (gamePoints[i].playerWhoCaptured == Player.Four)
+                        {
+                            playerFourSnake = new Queue<Vector2>(playerFourSnake.Reverse());
+                            playerFourSnake.Enqueue(playerFourDeleted);
+                            playerFourSnake = new Queue<Vector2>(playerFourSnake.Reverse());
+                        }
                     }
                 }
+
                 //Goes through the deletion list.
                 for (int i = 0; i < gamePointsDelete.Count; i++)
                 {
                     //Removes items from the gamePoints array.
                     gamePoints.Remove(gamePointsDelete[i]);
                 }
+
                 //Clears the deletion array.
                 gamePointsDelete.Clear();
             }
@@ -845,8 +1153,10 @@ namespace Snake
         protected override void Draw(GameTime gameTime)
         {
             GraphicsDevice.Clear(Color.White);
+            
             //Makes it so that there is no interpolation for stretching (nearest-neighbor algorithm).
-            spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullCounterClockwise);
+            spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend,
+                SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullCounterClockwise);
 
             //Displays the title in all of the menus.
             if (room != RoomIndex.rmMain)
@@ -923,6 +1233,7 @@ namespace Snake
                     0);
 
             }
+            
             //If the room is the info room.
             else if (room == RoomIndex.rmMenuInfo)
             {
@@ -935,31 +1246,38 @@ namespace Snake
                     Color.Black);
 
                 spriteBatch.DrawString(fntSmall,
-                    "left thumbstick for controllers, WASD for player one, and",
+                    "left thumbstick for controllers, WASD for player one, ",
                     new Vector2(scrWidth / 2
-                        - (fntSmall.MeasureString("left thumbstick for controllers, WASD for player one, and").X / 2),
+                        - (fntSmall.MeasureString("left thumbstick for controllers, WASD for player one, ").X / 2),
                         scrHeight / 5 + 120),
                     Color.Black);
 
                 spriteBatch.DrawString(fntSmall,
-                     "arrowkeys for player two.  Don't run into yourself or another",
+                     "arrowkeys for player two, JIKL for player three, and ",
                      new Vector2(scrWidth / 2
-                         - (fntSmall.MeasureString("arrowkeys for player two.  Don't run into yourself or another").X / 2),
+                         - (fntSmall.MeasureString("arrowkeys for player two, JIKL for player three, and ").X / 2),
                          scrHeight / 5 + 144),
                      Color.Black);
 
                 spriteBatch.DrawString(fntSmall,
-                     "player. Cut off the other player to win in two-player mode.",
+                     "FTGH for player four.  Don't run into yourself or another ",
                      new Vector2(scrWidth / 2
-                         - (fntSmall.MeasureString("player. Cut off the other player to win in two-player mode.").X / 2),
+                         - (fntSmall.MeasureString("FTGH for player four.  Don't run into yourself or another ").X / 2),
                          scrHeight / 5 + 168),
+                     Color.Black);
+
+                spriteBatch.DrawString(fntSmall,
+                     "player. Cut off another player to make them lose.",
+                     new Vector2(scrWidth / 2
+                         - (fntSmall.MeasureString("player. Cut off another player to make them lose.").X / 2),
+                         scrHeight / 5 + 192),
                      Color.Black);
 
                 spriteBatch.DrawString(fntSmall,
                      "P (keyboard) or B (gamepad) to pause. Y toggles music.",
                      new Vector2(scrWidth / 2
                          - (fntSmall.MeasureString("P (keyboard) or B (gamepad) to pause. Y toggles music.").X / 2),
-                         scrHeight / 5 + 192),
+                         scrHeight / 5 + 216),
                      Color.Black);
 
                 //Draws the back button.
@@ -982,6 +1300,8 @@ namespace Snake
                     SpriteEffects.None,
                     0);
             }
+
+            //If the room is in the options room.
             else if (room == RoomIndex.rmMenuOps)
             {
                 //Draws the small button.
@@ -1067,12 +1387,13 @@ namespace Snake
                     SpriteEffects.None,
                     0);
             }
+            
             //if the room is the play menu. 
             else if (room == RoomIndex.rmMenuPlay)
             {
                 //Draws the 'players' text.
                 spriteBatch.Draw(sprTitlePlayPlayers,
-                    new Rectangle(scrWidth / 2, scrHeight / 5 + 96, sprTitlePlayPlayers.Width, sprTitlePlayPlayers.Height),
+                    new Rectangle(scrWidth / 2, scrHeight / 5 + 72, sprTitlePlayPlayers.Width, sprTitlePlayPlayers.Height),
                     sprTitlePlayPlayers.Bounds,
                     Color.White,
                     0,
@@ -1082,7 +1403,7 @@ namespace Snake
 
                 //Draws the one button.
                 spriteBatch.Draw(sprTitlePlayPlayersOne,
-                    new Rectangle(scrWidth / 2, scrHeight / 5 + 192, sprTitlePlayPlayersOne.Width, sprTitlePlayPlayersOne.Height),
+                    new Rectangle(scrWidth / 2, scrHeight / 5 + 160, sprTitlePlayPlayersOne.Width, sprTitlePlayPlayersOne.Height),
                     sprTitlePlayPlayersOne.Bounds,
                     Color.White,
                     0,
@@ -1092,11 +1413,31 @@ namespace Snake
 
                 //Draws the two button.
                 spriteBatch.Draw(sprTitlePlayPlayersTwo,
-                    new Rectangle(scrWidth / 2, scrHeight / 5 + 288, sprTitlePlayPlayersTwo.Width, sprTitlePlayPlayersTwo.Height),
+                    new Rectangle(scrWidth / 2, scrHeight / 5 + 224, sprTitlePlayPlayersTwo.Width, sprTitlePlayPlayersTwo.Height),
                     sprTitlePlayPlayersTwo.Bounds,
                     Color.White,
                     0,
                     new Vector2(sprTitlePlayPlayersTwo.Width / 2, sprTitlePlayPlayersTwo.Height / 2),
+                    SpriteEffects.None,
+                    0);
+
+                //Draws the three button.
+                spriteBatch.Draw(sprTitlePlayPlayersThree,
+                    new Rectangle(scrWidth / 2, scrHeight / 5 + 288, sprTitlePlayPlayersThree.Width, sprTitlePlayPlayersThree.Height),
+                    sprTitlePlayPlayersThree.Bounds,
+                    Color.White,
+                    0,
+                    new Vector2(sprTitlePlayPlayersThree.Width / 2, sprTitlePlayPlayersThree.Height / 2),
+                    SpriteEffects.None,
+                    0);
+
+                //Draws the four button.
+                spriteBatch.Draw(sprTitlePlayPlayersFour,
+                    new Rectangle(scrWidth / 2, scrHeight / 5 + 352, sprTitlePlayPlayersFour.Width, sprTitlePlayPlayersFour.Height),
+                    sprTitlePlayPlayersFour.Bounds,
+                    Color.White,
+                    0,
+                    new Vector2(sprTitlePlayPlayersFour.Width / 2, sprTitlePlayPlayersFour.Height / 2),
                     SpriteEffects.None,
                     0);
 
@@ -1107,10 +1448,16 @@ namespace Snake
                 switch (button)
                 {
                     case (MenuButtons.onePlayer):
-                        tempYPos = scrHeight / 5 + 192;
+                        tempYPos = scrHeight / 5 + 160;
                         break;
                     case (MenuButtons.twoPlayer):
+                        tempYPos = scrHeight / 5 + 224;
+                        break;
+                    case (MenuButtons.threePlayer):
                         tempYPos = scrHeight / 5 + 288;
+                        break;
+                    case (MenuButtons.fourPlayer):
+                        tempYPos = scrHeight / 5 + 352;
                         break;
                 }
 
@@ -1124,6 +1471,7 @@ namespace Snake
                     SpriteEffects.None,
                     0);
             }
+            
             //If the room is the game.
             else if (room == RoomIndex.rmMain)
             {
@@ -1148,36 +1496,77 @@ namespace Snake
                 {
                     gamePoints[i].Draw(spriteBatch);
                 }
-                
-                //Draws snake one.
+
+                //Draws first player.
+                Color player1Color = Color.Red;
+                if (losers.Contains(Player.One)) { player1Color = Color.Black; }
+
                 for (int i = 0; i < playerOneSnake.Count; i++)
                 {
                     spriteBatch.Draw(sprSpriteBlock, new Rectangle(
-                        (int)playerOneSnake.ElementAt<Vector2>(i).X,
-                        (int)playerOneSnake.ElementAt<Vector2>(i).Y,
+                        (int)playerOneSnake.ElementAt(i).X,
+                        (int)playerOneSnake.ElementAt(i).Y,
                         (int)gridXPixels,
                         (int)gridYPixels),
-                    Color.Red);
+                        player1Color);
                 }
-
-                if (twoPlayer)
+                if (numPlayers >= 2) //Draws second player.
                 {
-                    //Draws snake two.
+                    Color player2Color = Color.Blue;
+                    if (losers.Contains(Player.Two)) { player2Color = Color.Black; }
+
                     for (int i = 0; i < playerTwoSnake.Count; i++)
                     {
                         spriteBatch.Draw(sprSpriteBlock, new Rectangle(
-                            (int)playerTwoSnake.ElementAt<Vector2>(i).X,
-                            (int)playerTwoSnake.ElementAt<Vector2>(i).Y,
+                            (int)playerTwoSnake.ElementAt(i).X,
+                            (int)playerTwoSnake.ElementAt(i).Y,
                             (int)gridXPixels,
                             (int)gridYPixels),
-                        Color.Blue);
+                            player2Color);
+                    }
+                }
+                if (numPlayers >= 3) //Draws third player.
+                {
+                    Color player3Color = Color.Green;
+                    if (losers.Contains(Player.Three)) { player3Color = Color.Black; }
+
+                    for (int i = 0; i < playerThreeSnake.Count; i++)
+                    {
+                        spriteBatch.Draw(sprSpriteBlock, new Rectangle(
+                            (int)playerThreeSnake.ElementAt(i).X,
+                            (int)playerThreeSnake.ElementAt(i).Y,
+                            (int)gridXPixels,
+                            (int)gridYPixels),
+                            player3Color);
+                    }
+                }
+                if (numPlayers >= 4) //Draws fourth player.
+                {
+                    Color player4Color = Color.DarkGoldenrod;
+                    if (losers.Contains(Player.Four)) { player4Color = Color.Black; }
+
+                    for (int i = 0; i < playerFourSnake.Count; i++)
+                    {
+                        spriteBatch.Draw(sprSpriteBlock, new Rectangle(
+                            (int)playerFourSnake.ElementAt(i).X,
+                            (int)playerFourSnake.ElementAt(i).Y,
+                            (int)gridXPixels,
+                            (int)gridYPixels),
+                            player4Color);
                     }
                 }
 
                 //If the game hasn't yet started...
-                if (twoPlayer && (playerOneDir == Direction.none || playerTwoDir == Direction.none))
+                if (playerOneDir == Direction.None ||
+                    (numPlayers >= 2 && playerTwoDir == Direction.None) ||
+                    (numPlayers >= 3 && playerThreeDir == Direction.None) ||
+                    (numPlayers >= 4 && playerFourDir == Direction.None))
                 {
-                    if (playerOneDir == Direction.none && playerTwoDir == Direction.none)
+                    //If no player has taken an initial direction.
+                    if (playerOneDir == Direction.None &&
+                        (numPlayers >= 2 && playerTwoDir == Direction.None) &&
+                        (numPlayers >= 3 && playerThreeDir == Direction.None) &&
+                        (numPlayers >= 4 && playerFourDir == Direction.None))
                     {
                         spriteBatch.Draw(sprTitleGameStart,
                             new Rectangle(scrWidth / 2, scrHeight / 2, sprTitleGameStart.Width, sprTitleGameStart.Height),
@@ -1188,18 +1577,7 @@ namespace Snake
                             SpriteEffects.None,
                             0);
                     }
-                    else if (playerOneDir != Direction.none)
-                    {
-                        spriteBatch.Draw(sprTitleGameStartBlue,
-                            new Rectangle(scrWidth / 2, scrHeight / 2, sprTitleGameStartBlue.Width, sprTitleGameStartBlue.Height),
-                            sprTitleGameStartBlue.Bounds,
-                            Color.White,
-                            0,
-                            new Vector2(sprTitleGameStartBlue.Width / 2, sprTitleGameStartBlue.Height / 2),
-                            SpriteEffects.None,
-                            0);
-                    }
-                    else if (playerTwoDir != Direction.none)
+                    else if (playerOneDir == Direction.None)
                     {
                         spriteBatch.Draw(sprTitleGameStartRed,
                             new Rectangle(scrWidth / 2, scrHeight / 2, sprTitleGameStartRed.Width, sprTitleGameStartRed.Height),
@@ -1210,17 +1588,39 @@ namespace Snake
                             SpriteEffects.None,
                             0);
                     }
-                }
-                else if (!twoPlayer && playerOneDir == Direction.none)
-                {
-                    spriteBatch.Draw(sprTitleGameStart,
-                            new Rectangle(scrWidth / 2, scrHeight / 2, sprTitleGameStart.Width, sprTitleGameStart.Height),
-                            sprTitleGameStart.Bounds,
+                    else if (numPlayers >= 2 && playerTwoDir == Direction.None)
+                    {
+                        spriteBatch.Draw(sprTitleGameStartBlue,
+                            new Rectangle(scrWidth / 2, scrHeight / 2, sprTitleGameStartBlue.Width, sprTitleGameStartBlue.Height),
+                            sprTitleGameStartBlue.Bounds,
                             Color.White,
                             0,
-                            new Vector2(sprTitleGameStart.Width / 2, sprTitleGameStart.Height / 2),
+                            new Vector2(sprTitleGameStartBlue.Width / 2, sprTitleGameStartBlue.Height / 2),
                             SpriteEffects.None,
                             0);
+                    }
+                    else if (numPlayers >= 3 && playerThreeDir == Direction.None)
+                    {
+                        spriteBatch.Draw(sprTitleGameStartGreen,
+                            new Rectangle(scrWidth / 2, scrHeight / 2, sprTitleGameStartGreen.Width, sprTitleGameStartGreen.Height),
+                            sprTitleGameStartGreen.Bounds,
+                            Color.White,
+                            0,
+                            new Vector2(sprTitleGameStartGreen.Width / 2, sprTitleGameStartGreen.Height / 2),
+                            SpriteEffects.None,
+                            0);
+                    }
+                    else if (numPlayers >= 4 && playerFourDir == Direction.None)
+                    {
+                        spriteBatch.Draw(sprTitleGameStartYellow,
+                            new Rectangle(scrWidth / 2, scrHeight / 2, sprTitleGameStartYellow.Width, sprTitleGameStartYellow.Height),
+                            sprTitleGameStartYellow.Bounds,
+                            Color.White,
+                            0,
+                            new Vector2(sprTitleGameStartYellow.Width / 2, sprTitleGameStartYellow.Height / 2),
+                            SpriteEffects.None,
+                            0);
+                    }
                 }
 
                 //Draws the word 'paused' when the game is paused
@@ -1237,10 +1637,10 @@ namespace Snake
                         0);
                 }
 
-                //Draws who won to the screen.
-                if (winner != Player.all && twoPlayer)
+                //End of game messages in multiplayer.
+                if (winner != Player.All && numPlayers >= 2)
                 {
-                    if (winner == Player.one)
+                    if (winner == Player.One)
                     {
                         spriteBatch.DrawString(
                             fntDefault,
@@ -1248,7 +1648,7 @@ namespace Snake
                             new Vector2(scrWidth / 2 - (fntDefault.MeasureString("Red wins!").X / 2), scrHeight / 2),
                             Color.Red);
                     }
-                    else if (winner == Player.two)
+                    else if (winner == Player.Two)
                     {
                         spriteBatch.DrawString(
                             fntDefault,
@@ -1256,7 +1656,23 @@ namespace Snake
                             new Vector2(scrWidth / 2 - (fntDefault.MeasureString("Blue wins!").X / 2), scrHeight / 2),
                             Color.Blue);
                     }
-                    else if (winner == Player.none)
+                    else if (winner == Player.Three)
+                    {
+                        spriteBatch.DrawString(
+                            fntDefault,
+                            "Green wins!",
+                            new Vector2(scrWidth / 2 - (fntDefault.MeasureString("Green wins!").X / 2), scrHeight / 2),
+                            Color.Green);
+                    }
+                    else if (winner == Player.Four)
+                    {
+                        spriteBatch.DrawString(
+                            fntDefault,
+                            "Yellow wins!",
+                            new Vector2(scrWidth / 2 - (fntDefault.MeasureString("Yellow wins!").X / 2), scrHeight / 2),
+                            Color.DarkGoldenrod);
+                    }
+                    else if (winner == Player.None)
                     {
                         spriteBatch.DrawString(
                             fntDefault,
@@ -1265,14 +1681,19 @@ namespace Snake
                             Color.Black);
                     }
 
+                    //Displays the sizes of each snake on-screen.
+                    string snakeSizes = "Red: " + playerOneSnake.Count;
+                    if (numPlayers >= 2) { snakeSizes += "  Blue: " + playerTwoSnake.Count; }
+                    if (numPlayers >= 3) { snakeSizes += "  Green: " + playerThreeSnake.Count; }
+                    if (numPlayers >= 4) { snakeSizes += "  Yellow " + playerFourSnake.Count; }
+
                     spriteBatch.DrawString(
                         fntDefault,
-                        "Red size: " + playerOneSnake.Count.ToString() + "\nBlue size: " + playerTwoSnake.Count.ToString(),
+                        snakeSizes,
                         new Vector2(scrWidth / 2 -
-                            (fntDefault.MeasureString("Red size: " + playerOneSnake.Count.ToString() +
-                            "\nBlue size: " + playerTwoSnake.Count.ToString()).X / 2),
+                            (fntDefault.MeasureString(snakeSizes).X / 2),
                             scrHeight / 2 + 64),
-                        Color.Black);
+                        Color.DarkGray);
 
                     spriteBatch.DrawString(
                         fntDefault,
@@ -1280,12 +1701,17 @@ namespace Snake
                         new Vector2(scrWidth / 2 - (fntDefault.MeasureString("Press Enter or Start to exit to menu.").X / 2), scrHeight / 2 + 160),
                         Color.Black);
                 }
-                else if (winner != Player.all && !twoPlayer)
+
+                //End of game messages in single player.
+                else if (losers.Count > 0 && numPlayers == 1)
                 {
+                    //Displays the size of the snake on-screen.
+                    string snakeSize = "size: " + playerOneSnake.Count;
+
                     spriteBatch.DrawString(
                         fntDefault,
-                        "size: " + playerOneSnake.Count.ToString(),
-                        new Vector2(scrWidth / 2 - (fntDefault.MeasureString("size: " + playerOneSnake.Count.ToString()).X / 2),
+                        snakeSize,
+                        new Vector2(scrWidth / 2 - (fntDefault.MeasureString(snakeSize).X / 2),
                             scrHeight / 2 + 64),
                         Color.Black);
 
@@ -1309,101 +1735,194 @@ namespace Snake
             //Creates temporary variables for the x and y additions to be made.
             float tempXPlayer1 = 0, tempYPlayer1 = 0;
             float tempXPlayer2 = 0, tempYPlayer2 = 0;
+            float tempXPlayer3 = 0, tempYPlayer3 = 0;
+            float tempXPlayer4 = 0, tempYPlayer4 = 0;
 
             //Affects the movement of player one.
-            if (playerOneDir == Direction.right)
+            if (playerOneDir == Direction.Right)
             {
                 tempXPlayer1 = gridXPixels;
             }
-            else if (playerOneDir == Direction.down)
+            else if (playerOneDir == Direction.Down)
             {
                 tempYPlayer1 = gridYPixels;
             }
-            else if (playerOneDir == Direction.left)
+            else if (playerOneDir == Direction.Left)
             {
                 tempXPlayer1 = -gridXPixels;
             }
-            else if (playerOneDir == Direction.up)
+            else if (playerOneDir == Direction.Up)
             {
                 tempYPlayer1 = -gridYPixels;
             }
 
-            if (twoPlayer)
+            if (numPlayers >= 2) //Moves second player.
             {
-                //Affects the movement of player 2.
-                if (playerTwoDir == Direction.right)
+                if (playerTwoDir == Direction.Right)
                 {
                     tempXPlayer2 = gridXPixels;
                 }
-                else if (playerTwoDir == Direction.down)
+                else if (playerTwoDir == Direction.Down)
                 {
                     tempYPlayer2 = gridYPixels;
                 }
-                else if (playerTwoDir == Direction.left)
+                else if (playerTwoDir == Direction.Left)
                 {
                     tempXPlayer2 = -gridXPixels;
                 }
-                else if (playerTwoDir == Direction.up)
+                else if (playerTwoDir == Direction.Up)
                 {
                     tempYPlayer2 = -gridYPixels;
                 }
             }
 
+            if (numPlayers >= 3) //Moves third player.
+            {
+                if (playerThreeDir == Direction.Right)
+                {
+                    tempXPlayer3 = gridXPixels;
+                }
+                else if (playerThreeDir == Direction.Down)
+                {
+                    tempYPlayer3 = gridYPixels;
+                }
+                else if (playerThreeDir == Direction.Left)
+                {
+                    tempXPlayer3 = -gridXPixels;
+                }
+                else if (playerThreeDir == Direction.Up)
+                {
+                    tempYPlayer3 = -gridYPixels;
+                }
+            }
+
+            if (numPlayers >= 4) //Moves fourth player.
+            {
+                if (playerFourDir == Direction.Right)
+                {
+                    tempXPlayer4 = gridXPixels;
+                }
+                else if (playerFourDir == Direction.Down)
+                {
+                    tempYPlayer4 = gridYPixels;
+                }
+                else if (playerFourDir == Direction.Left)
+                {
+                    tempXPlayer4 = -gridXPixels;
+                }
+                else if (playerFourDir == Direction.Up)
+                {
+                    tempYPlayer4 = -gridYPixels;
+                }
+            }
+
             //Adds a new block to players based on their direction.
             //This just simulates movement of blocks.
-            playerOneSnake.Enqueue(new Vector2(
-                playerOneSnake.ElementAt<Vector2>(playerOneSnake.Count - 1).X + tempXPlayer1,
-                playerOneSnake.ElementAt<Vector2>(playerOneSnake.Count - 1).Y + tempYPlayer1));
-
-            if (twoPlayer)
+            if (!losers.Contains(Player.One))
+            {
+                playerOneSnake.Enqueue(new Vector2(
+                    playerOneSnake.ElementAt(playerOneSnake.Count - 1).X + tempXPlayer1,
+                    playerOneSnake.ElementAt(playerOneSnake.Count - 1).Y + tempYPlayer1));
+            }
+            if (!losers.Contains(Player.Two) && numPlayers >= 2)
             {
                 playerTwoSnake.Enqueue(new Vector2(
-                    playerTwoSnake.ElementAt<Vector2>(playerTwoSnake.Count - 1).X + tempXPlayer2,
-                    playerTwoSnake.ElementAt<Vector2>(playerTwoSnake.Count - 1).Y + tempYPlayer2));
+                    playerTwoSnake.ElementAt(playerTwoSnake.Count - 1).X + tempXPlayer2,
+                    playerTwoSnake.ElementAt(playerTwoSnake.Count - 1).Y + tempYPlayer2));
             }
+            if (!losers.Contains(Player.Three) && numPlayers >= 3)
+            {
+                playerThreeSnake.Enqueue(new Vector2(
+                    playerThreeSnake.ElementAt(playerThreeSnake.Count - 1).X + tempXPlayer3,
+                    playerThreeSnake.ElementAt(playerThreeSnake.Count - 1).Y + tempYPlayer3));
+            }
+            if (!losers.Contains(Player.Four) && numPlayers >= 4)
+            {
+                playerFourSnake.Enqueue(new Vector2(
+                    playerFourSnake.ElementAt(playerFourSnake.Count - 1).X + tempXPlayer4,
+                    playerFourSnake.ElementAt(playerFourSnake.Count - 1).Y + tempYPlayer4));
+            }
+
             //Removes the first block from the stack.
-            playerOneDeleted = playerOneSnake.Dequeue();
-            if (twoPlayer)
+            if (!losers.Contains(Player.One))
+            {
+                playerOneDeleted = playerOneSnake.Dequeue();
+            }
+            if (!losers.Contains(Player.Two) && numPlayers >= 2)
             {
                 playerTwoDeleted = playerTwoSnake.Dequeue();
             }
+            if (!losers.Contains(Player.Three) && numPlayers >= 3)
+            {
+                playerThreeDeleted = playerThreeSnake.Dequeue();
+            }
+            if (!losers.Contains(Player.Four) && numPlayers >= 4)
+            {
+                playerFourDeleted = playerFourSnake.Dequeue();
+            }
 
             //Checks to see if the new block is outside of the screen.
-            if (playerOneSnake.ElementAt<Vector2>(playerOneSnake.Count - 1).X >= scrWidth ||
-                playerOneSnake.ElementAt<Vector2>(playerOneSnake.Count - 1).X < 0 ||
-                playerOneSnake.ElementAt<Vector2>(playerOneSnake.Count - 1).Y >= scrHeight ||
-                playerOneSnake.ElementAt<Vector2>(playerOneSnake.Count - 1).Y < 0)
+            if (!losers.Contains(Player.One))
             {
-                if (soundEnabled)
-                {
-                    sfxGameEnd.Play();
-                }
-                winner = Player.two;
-
-                //Checks to see if the other snake is off-screen too (would be a tie-game).
-                if (twoPlayer)
-                {
-                    if (playerTwoSnake.ElementAt<Vector2>(playerTwoSnake.Count - 1).X >= scrWidth ||
-                    playerTwoSnake.ElementAt<Vector2>(playerTwoSnake.Count - 1).X < 0 ||
-                    playerTwoSnake.ElementAt<Vector2>(playerTwoSnake.Count - 1).Y >= scrHeight ||
-                    playerTwoSnake.ElementAt<Vector2>(playerTwoSnake.Count - 1).Y < 0)
-                    {
-                        winner = Player.none;
-                    }
-                }
-            }
-            if (twoPlayer && winner == Player.all)
-            {
-                if (playerTwoSnake.ElementAt<Vector2>(playerTwoSnake.Count - 1).X >= scrWidth ||
-                    playerTwoSnake.ElementAt<Vector2>(playerTwoSnake.Count - 1).X < 0 ||
-                    playerTwoSnake.ElementAt<Vector2>(playerTwoSnake.Count - 1).Y >= scrHeight ||
-                    playerTwoSnake.ElementAt<Vector2>(playerTwoSnake.Count - 1).Y < 0)
+                if (playerOneSnake.Last().X >= scrWidth ||
+                    playerOneSnake.Last().X < 0 ||
+                    playerOneSnake.Last().Y >= scrHeight ||
+                    playerOneSnake.Last().Y < 0)
                 {
                     if (soundEnabled)
                     {
                         sfxGameEnd.Play();
                     }
-                    winner = Player.one;
+
+                    losers.Add(Player.One);
+                }
+            }
+            if (numPlayers >= 2 && !losers.Contains(Player.Two))
+            {
+                if (playerTwoSnake.Last().X >= scrWidth ||
+                    playerTwoSnake.Last().X < 0 ||
+                    playerTwoSnake.Last().Y >= scrHeight ||
+                    playerTwoSnake.Last().Y < 0)
+                {
+
+                    if (soundEnabled)
+                    {
+                        sfxGameEnd.Play();
+                    }
+
+                    losers.Add(Player.Two);
+                }
+            }
+            if (numPlayers >= 3 && !losers.Contains(Player.Three))
+            {
+                if (playerThreeSnake.Last().X >= scrWidth ||
+                    playerThreeSnake.Last().X < 0 ||
+                    playerThreeSnake.Last().Y >= scrHeight ||
+                    playerThreeSnake.Last().Y < 0)
+                {
+
+                    if (soundEnabled)
+                    {
+                        sfxGameEnd.Play();
+                    }
+
+                    losers.Add(Player.Three);
+                }
+            }
+            if (numPlayers >= 4 && !losers.Contains(Player.Four))
+            {
+                if (playerFourSnake.Last().X >= scrWidth ||
+                    playerFourSnake.Last().X < 0 ||
+                    playerFourSnake.Last().Y >= scrHeight ||
+                    playerFourSnake.Last().Y < 0)
+                {
+
+                    if (soundEnabled)
+                    {
+                        sfxGameEnd.Play();
+                    }
+
+                    losers.Add(Player.Four);
                 }
             }
         }
@@ -1413,85 +1932,312 @@ namespace Snake
         /// </summary>
         public void UpdateCollision()
         {
-            //Checks for collision between the first snake and itself.
-            for (int i = 0; i < playerOneSnake.Count - 1; i++)
+            //Checks for collision of each snake to itself.
+            if (!losers.Contains(Player.One))
             {
-                if ((playerOneSnake.Count - 1) != 0)
+                for (int i = 0; i < playerOneSnake.Count - 1; i++)
                 {
-                    if (
-                        playerOneSnake.ElementAt<Vector2>(playerOneSnake.Count - 1).X == playerOneSnake.ElementAt<Vector2>(i).X &&
-                        playerOneSnake.ElementAt<Vector2>(playerOneSnake.Count - 1).Y == playerOneSnake.ElementAt<Vector2>(i).Y)
+                    if ((playerOneSnake.Count - 1) != 0)
                     {
-                        if (soundEnabled)
-                        {
-                            sfxGameEnd.Play();
-                        }
-                        winner = Player.two;
-                    }
-                }
-            }
-
-            if (twoPlayer)
-            {
-                //Checks for collision between the second snake and itself.
-                for (int i = 0; i < playerTwoSnake.Count - 1; i++)
-                {
-                    if ((playerTwoSnake.Count - 1) != 0)
-                    {
-                        if (
-                            playerTwoSnake.ElementAt<Vector2>(playerTwoSnake.Count - 1).X == playerTwoSnake.ElementAt<Vector2>(i).X &&
-                            playerTwoSnake.ElementAt<Vector2>(playerTwoSnake.Count - 1).Y == playerTwoSnake.ElementAt<Vector2>(i).Y)
+                        if (playerOneSnake.Last().X == playerOneSnake.ElementAt(i).X &&
+                            playerOneSnake.Last().Y == playerOneSnake.ElementAt(i).Y)
                         {
                             if (soundEnabled)
                             {
                                 sfxGameEnd.Play();
                             }
-                            winner = Player.one;
+
+                            losers.Add(Player.One);
                         }
                     }
                 }
+            }
+            if (!losers.Contains(Player.Two))
+            {
+                for (int i = 0; i < playerTwoSnake.Count - 1; i++)
+                {
+                    if ((playerTwoSnake.Count - 1) != 0)
+                    {
+                        if (playerTwoSnake.Last().X == playerTwoSnake.ElementAt(i).X &&
+                            playerTwoSnake.Last().Y == playerTwoSnake.ElementAt(i).Y)
+                        {
+                            if (soundEnabled)
+                            {
+                                sfxGameEnd.Play();
+                            }
 
-                //Checks if the first player hits the second.
+                            losers.Add(Player.Two);
+                        }
+                    }
+                }
+            }
+            if (!losers.Contains(Player.Three))
+            {
+                for (int i = 0; i < playerThreeSnake.Count - 1; i++)
+                {
+                    if ((playerThreeSnake.Count - 1) != 0)
+                    {
+                        if (playerThreeSnake.Last().X == playerThreeSnake.ElementAt(i).X &&
+                            playerThreeSnake.Last().Y == playerThreeSnake.ElementAt(i).Y)
+                        {
+                            if (soundEnabled)
+                            {
+                                sfxGameEnd.Play();
+                            }
+
+                            losers.Add(Player.Three);
+                        }
+                    }
+                }
+            }
+            if (!losers.Contains(Player.Four))
+            {
+                for (int i = 0; i < playerFourSnake.Count - 1; i++)
+                {
+                    if ((playerFourSnake.Count - 1) != 0)
+                    {
+                        if (playerFourSnake.Last().X == playerFourSnake.ElementAt(i).X &&
+                            playerFourSnake.Last().Y == playerFourSnake.ElementAt(i).Y)
+                        {
+                            if (soundEnabled)
+                            {
+                                sfxGameEnd.Play();
+                            }
+
+                            losers.Add(Player.Four);
+                        }
+                    }
+                }
+            }
+
+            //Checks if the first player hits another snake.
+            if (!losers.Contains(Player.One))
+            {
                 for (int i = 0; i < playerTwoSnake.Count; i++)
                 {
-                    if (
-                        playerOneSnake.ElementAt<Vector2>(playerOneSnake.Count - 1).X == playerTwoSnake.ElementAt<Vector2>(i).X &&
-                        playerOneSnake.ElementAt<Vector2>(playerOneSnake.Count - 1).Y == playerTwoSnake.ElementAt<Vector2>(i).Y)
+                    if (numPlayers < 2)
+                    {
+                        break;
+                    }
+
+                    if (playerOneSnake.Last().X == playerTwoSnake.ElementAt(i).X &&
+                        playerOneSnake.Last().Y == playerTwoSnake.ElementAt(i).Y)
                     {
                         if (soundEnabled)
                         {
                             sfxGameEnd.Play();
                         }
-                        winner = Player.two;
+
+                        losers.Add(Player.One);
                     }
                 }
+                for (int i = 0; i < playerThreeSnake.Count; i++)
+                {
+                    if (numPlayers < 3)
+                    {
+                        break;
+                    }
 
-                //Checks if the second player hits the first player.
+                    if (playerOneSnake.Last().X == playerThreeSnake.ElementAt(i).X &&
+                        playerOneSnake.Last().Y == playerThreeSnake.ElementAt(i).Y)
+                    {
+                        if (soundEnabled)
+                        {
+                            sfxGameEnd.Play();
+                        }
+
+                        losers.Add(Player.One);
+                    }
+                }
+                for (int i = 0; i < playerFourSnake.Count; i++)
+                {
+                    if (numPlayers < 4)
+                    {
+                        break;
+                    }
+
+                    if (playerOneSnake.Last().X == playerFourSnake.ElementAt(i).X &&
+                        playerOneSnake.Last().Y == playerFourSnake.ElementAt(i).Y)
+                    {
+                        if (soundEnabled)
+                        {
+                            sfxGameEnd.Play();
+                        }
+
+                        losers.Add(Player.One);
+                    }
+                }
+            }
+
+            //Checks if the second player hits another snake.
+            if (!losers.Contains(Player.Two))
+            {
                 for (int i = 0; i < playerOneSnake.Count; i++)
                 {
-                    if (
-                        playerOneSnake.ElementAt<Vector2>(i).X == playerTwoSnake.ElementAt<Vector2>(playerTwoSnake.Count - 1).X &&
-                        playerOneSnake.ElementAt<Vector2>(i).Y == playerTwoSnake.ElementAt<Vector2>(playerTwoSnake.Count - 1).Y)
+                    if (numPlayers < 2)
+                    {
+                        break;
+                    }
+
+                    if (playerTwoSnake.Last().X == playerOneSnake.ElementAt(i).X &&
+                        playerTwoSnake.Last().Y == playerOneSnake.ElementAt(i).Y)
                     {
                         if (soundEnabled)
                         {
                             sfxGameEnd.Play();
                         }
-                        winner = Player.one;
-                    }
-                }
 
-                //If both hit each other dead-on.
-                if (
-                    playerOneSnake.ElementAt<Vector2>(playerOneSnake.Count - 1).X == playerTwoSnake.ElementAt<Vector2>(playerTwoSnake.Count - 1).X &&
-                    playerOneSnake.ElementAt<Vector2>(playerOneSnake.Count - 1).Y == playerTwoSnake.ElementAt<Vector2>(playerTwoSnake.Count - 1).Y)
-                {
-                    if (soundEnabled)
-                    {
-                        sfxGameEnd.Play();
+                        losers.Add(Player.Two);
                     }
-                    winner = Player.none;
                 }
+                for (int i = 0; i < playerThreeSnake.Count; i++)
+                {
+                    if (numPlayers < 3)
+                    {
+                        break;
+                    }
+
+                    if (playerTwoSnake.Last().X == playerThreeSnake.ElementAt(i).X &&
+                        playerTwoSnake.Last().Y == playerThreeSnake.ElementAt(i).Y)
+                    {
+                        if (soundEnabled)
+                        {
+                            sfxGameEnd.Play();
+                        }
+
+                        losers.Add(Player.Two);
+                    }
+                }
+                for (int i = 0; i < playerFourSnake.Count; i++)
+                {
+                    if (numPlayers < 4)
+                    {
+                        break;
+                    }
+
+                    if (playerTwoSnake.Last().X == playerFourSnake.ElementAt(i).X &&
+                        playerTwoSnake.Last().Y == playerFourSnake.ElementAt(i).Y)
+                    {
+                        if (soundEnabled)
+                        {
+                            sfxGameEnd.Play();
+                        }
+
+                        losers.Add(Player.Two);
+                    }
+                }
+            }
+
+            //Checks if the third player hits another snake.
+            if (!losers.Contains(Player.Three))
+            {
+                for (int i = 0; i < playerOneSnake.Count; i++)
+                {
+                    if (numPlayers < 3)
+                    {
+                        break;
+                    }
+
+                    if (playerThreeSnake.Last().X == playerOneSnake.ElementAt(i).X &&
+                        playerThreeSnake.Last().Y == playerOneSnake.ElementAt(i).Y)
+                    {
+                        if (soundEnabled)
+                        {
+                            sfxGameEnd.Play();
+                        }
+
+                        losers.Add(Player.Three);
+                    }
+                }
+                for (int i = 0; i < playerTwoSnake.Count; i++)
+                {
+                    if (numPlayers < 3)
+                    {
+                        break;
+                    }
+
+                    if (playerThreeSnake.Last().X == playerTwoSnake.ElementAt(i).X &&
+                        playerThreeSnake.Last().Y == playerTwoSnake.ElementAt(i).Y)
+                    {
+                        if (soundEnabled)
+                        {
+                            sfxGameEnd.Play();
+                        }
+
+                        losers.Add(Player.Three);
+                    }
+                }
+                for (int i = 0; i < playerFourSnake.Count; i++)
+                {
+                    if (numPlayers < 4)
+                    {
+                        break;
+                    }
+
+                    if (playerThreeSnake.Last().X == playerFourSnake.ElementAt(i).X &&
+                        playerThreeSnake.Last().Y == playerFourSnake.ElementAt(i).Y)
+                    {
+                        if (soundEnabled)
+                        {
+                            sfxGameEnd.Play();
+                        }
+
+                        losers.Add(Player.Three);
+                    }
+                }
+            }
+
+            //Checks if the fourth player hits another snake.
+            if (!losers.Contains(Player.Four) && numPlayers >= 4)
+            {
+                for (int i = 0; i < playerOneSnake.Count; i++)
+                {
+                    if (playerFourSnake.Last().X == playerOneSnake.ElementAt(i).X &&
+                        playerFourSnake.Last().Y == playerOneSnake.ElementAt(i).Y)
+                    {
+                        if (soundEnabled)
+                        {
+                            sfxGameEnd.Play();
+                        }
+
+                        losers.Add(Player.Four);
+                    }
+                }
+                for (int i = 0; i < playerTwoSnake.Count; i++)
+                {
+                    if (playerFourSnake.Last().X == playerTwoSnake.ElementAt(i).X &&
+                        playerFourSnake.Last().Y == playerTwoSnake.ElementAt(i).Y)
+                    {
+                        if (soundEnabled)
+                        {
+                            sfxGameEnd.Play();
+                        }
+
+                        losers.Add(Player.Four);
+                    }
+                }
+                for (int i = 0; i < playerThreeSnake.Count; i++)
+                {
+                    if (playerFourSnake.Last().X == playerThreeSnake.ElementAt(i).X &&
+                        playerFourSnake.Last().Y == playerThreeSnake.ElementAt(i).Y)
+                    {
+                        if (soundEnabled)
+                        {
+                            sfxGameEnd.Play();
+                        }
+
+                        losers.Add(Player.Four);
+                    }
+                }
+            }
+
+            //Checks if the first player collides head-on with another.
+            if (numPlayers >= 2 &&
+                playerOneSnake.Last().X == playerTwoSnake.Last().X &&
+                playerOneSnake.Last().Y == playerTwoSnake.Last().Y)
+            {
+                losers.Add(Player.One);
+                losers.Add(Player.Two);
             }
 
             //Updates the point array.
@@ -1500,23 +2246,110 @@ namespace Snake
                 if (!gamePoints[i].markedForDeletion)
                 {
                     //If there's a direct collision between player one and a point.
-                    if ((playerOneSnake.ElementAt<Vector2>(playerOneSnake.Count - 1).X == gamePoints[i].xPos) &&
-                        (playerOneSnake.ElementAt<Vector2>(playerOneSnake.Count - 1).Y == gamePoints[i].yPos))
+                    if (!losers.Contains(Player.One) &&
+                        playerOneSnake.Last().X == gamePoints[i].xPos &&
+                        playerOneSnake.Last().Y == gamePoints[i].yPos)
                     {
-                        gamePoints[i].playerWhoCaptured = Player.one;
+                        gamePoints[i].playerWhoCaptured = Player.One;
                         gamePoints[i].markedForDeletion = true;
                     }
 
-                    if (twoPlayer)
+                    //If there's a direct collision between player two and a point.
+                    if (!losers.Contains(Player.Two) && numPlayers >= 2 &&
+                        playerTwoSnake.Last().X == gamePoints[i].xPos &&
+                        playerTwoSnake.Last().Y == gamePoints[i].yPos)
                     {
-                        //If there's a direct collision between player two and a point.
-                        if ((playerTwoSnake.ElementAt<Vector2>(playerTwoSnake.Count - 1).X == gamePoints[i].xPos) &&
-                            (playerTwoSnake.ElementAt<Vector2>(playerTwoSnake.Count - 1).Y == gamePoints[i].yPos))
-                        {
-                            gamePoints[i].playerWhoCaptured = Player.two;
-                            gamePoints[i].markedForDeletion = true;
-                        }
+                        gamePoints[i].playerWhoCaptured = Player.Two;
+                        gamePoints[i].markedForDeletion = true;
                     }
+
+                    //If there's a direct collision between player three and a point.
+                    if (!losers.Contains(Player.Three) && numPlayers >= 3 &&
+                        playerThreeSnake.Last().X == gamePoints[i].xPos &&
+                        playerThreeSnake.Last().Y == gamePoints[i].yPos)
+                    {
+                        gamePoints[i].playerWhoCaptured = Player.Three;
+                        gamePoints[i].markedForDeletion = true;
+                    }
+
+                    //If there's a direct collision between player four and a point.
+                    if (!losers.Contains(Player.Four) && numPlayers >= 4 &&
+                        playerFourSnake.Last().X == gamePoints[i].xPos &&
+                        playerFourSnake.Last().Y == gamePoints[i].yPos)
+                    {
+                        gamePoints[i].playerWhoCaptured = Player.Four;
+                        gamePoints[i].markedForDeletion = true;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Checks to see if any player has won and, if so, which player.
+        /// </summary>
+        public void UpdateWinStatus()
+        {
+            //If only one player hasn't lost, then they've won.
+            if (numPlayers - losers.Count == 1)
+            {
+                if (soundEnabled)
+                {
+                    sfxGameEnd.Play();
+                }
+
+                if (!losers.Contains(Player.One))
+                {
+                    winner = Player.One;
+                }
+                else if (!losers.Contains(Player.Two))
+                {
+                    winner = Player.Two;
+                }
+                else if (!losers.Contains(Player.Three))
+                {
+                    winner = Player.Three;
+                }
+                else if (!losers.Contains(Player.Four))
+                {
+                    winner = Player.Four;
+                }
+            }
+
+            //If all players have lost, the game is a tie.
+            else if (numPlayers == losers.Count)
+            {
+                if (soundEnabled)
+                {
+                    sfxGameEnd.Play();
+                }
+
+                if (playerOneSnake.Count > playerTwoSnake.Count &&
+                    playerOneSnake.Count > playerThreeSnake.Count &&
+                    playerOneSnake.Count > playerFourSnake.Count)
+                {
+                    winner = Player.One;
+                }
+                else if (playerTwoSnake.Count > playerOneSnake.Count &&
+                    playerTwoSnake.Count > playerThreeSnake.Count &&
+                    playerTwoSnake.Count > playerFourSnake.Count)
+                {
+                    winner = Player.Two;
+                }
+                else if (playerThreeSnake.Count > playerOneSnake.Count &&
+                    playerThreeSnake.Count > playerTwoSnake.Count &&
+                    playerThreeSnake.Count > playerFourSnake.Count)
+                {
+                    winner = Player.Three;
+                }
+                else if (playerFourSnake.Count > playerOneSnake.Count &&
+                    playerFourSnake.Count > playerTwoSnake.Count &&
+                    playerFourSnake.Count > playerThreeSnake.Count)
+                {
+                    winner = Player.Four;
+                }
+                else
+                {
+                    winner = Player.None;
                 }
             }
         }
