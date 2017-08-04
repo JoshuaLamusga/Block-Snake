@@ -205,12 +205,6 @@ namespace BlockSnake
 
             //Sets the game to start in the center of the screen.
             Window.Position = Window.ClientBounds.Center;
-
-            //When a player loses, winning/losing is recalculated.
-            losers.CollectionChanged += (a, b) =>
-            {
-                UpdateWinStatus();
-            };
         }
         #endregion
 
@@ -784,6 +778,9 @@ namespace BlockSnake
                     return;
                 }
 
+                //Clear the list of players that lost since last update.
+                losersThisUpdate.Clear();
+
                 //Processes gamepad input for player 1.
                 if (!losers.Contains(PlayerNum.One))
                 {
@@ -994,6 +991,7 @@ namespace BlockSnake
                     numUpdates = numUpdatesToRefresh;
                     UpdateMovement();
                     UpdateCollision();
+                    UpdateWinStatus();
                 }
 
                 //Spawns points randomly and spawns a point if there are none.
@@ -1507,6 +1505,8 @@ namespace BlockSnake
                             SpriteEffects.None,
                             0);
                     }
+
+                    //Displays which players haven't chosen a direction.
                     else
                     {
                         if (playerDirections[0] == PlayerDir.None)
@@ -1707,6 +1707,7 @@ namespace BlockSnake
                             sfxGameEnd.Play();
                         }
 
+                        losersThisUpdate.Add((PlayerNum)i);
                         losers.Add((PlayerNum)i);
                     }
 
@@ -1745,6 +1746,7 @@ namespace BlockSnake
                                 sfxGameEnd.Play();
                             }
 
+                            losersThisUpdate.Add((PlayerNum)i);
                             losers.Add((PlayerNum)i);
                         }
                     }
@@ -1757,6 +1759,16 @@ namespace BlockSnake
                             sfxGameEnd.Play();
                         }
 
+                        losersThisUpdate.Add((PlayerNum)i);
+                        losers.Add((PlayerNum)i);
+                    }
+
+                    //Checks for collisions between players of size 1.
+                    else if (playerSnakes[i].Count == 1 && playerSnakes[j].Count == 1 &&
+                        IsOppositeDirection(playerDirections[i], playerDirections[j]) &&
+                        playerSnakes[i].Last().Equals(playerDeletedBlocks[j]))
+                    {
+                        losersThisUpdate.Add((PlayerNum)i);
                         losers.Add((PlayerNum)i);
                     }
                 }
@@ -1786,8 +1798,8 @@ namespace BlockSnake
         /// </summary>
         private void UpdateWinStatus()
         {
-            //If only one player hasn't lost, then they've won.
-            if (numPlayers - losers.Count == 1)
+            //In multiplayer, declares a winner with one player left.
+            if (numPlayers != 1 && numPlayers - losers.Count == 1)
             {
                 if (isSoundEnabled)
                 {
@@ -1820,35 +1832,66 @@ namespace BlockSnake
                     sfxGameEnd.Play();
                 }
 
-                if (playerSnakes[0].Count > playerSnakes[1].Count &&
-                    playerSnakes[0].Count > playerSnakes[2].Count &&
-                    playerSnakes[0].Count > playerSnakes[3].Count)
+                //Only snakes that just lost can break a tie.
+                bool tieBreakFound = false;
+                for (int i = 0; i < losersThisUpdate.Count; i++)
                 {
-                    winner = PlayerNum.One;
+                    bool isLargestSnake = true;
+                    int thisSnake = (int)losersThisUpdate[i];
+
+                    //A player can only break a tie if they're the largest.
+                    for (int j = 0; j < losersThisUpdate.Count; j++)
+                    {
+                        //Doesn't compare players to themselves.
+                        if (i == j)
+                        {
+                            continue;
+                        }
+
+                        int otherSnake = (int)losersThisUpdate[j];
+
+                        if (playerSnakes[thisSnake].Count <=
+                            playerSnakes[otherSnake].Count)
+                        {
+                            isLargestSnake = false;
+                            break;
+                        }
+                    }
+
+                    //Otherwise, the player wins.
+                    if (isLargestSnake)
+                    {
+                        tieBreakFound = true;
+                        winner = (PlayerNum)thisSnake;
+                    }
                 }
-                else if (playerSnakes[1].Count > playerSnakes[0].Count &&
-                    playerSnakes[1].Count > playerSnakes[2].Count &&
-                    playerSnakes[1].Count > playerSnakes[3].Count)
-                {
-                    winner = PlayerNum.Two;
-                }
-                else if (playerSnakes[2].Count > playerSnakes[0].Count &&
-                    playerSnakes[2].Count > playerSnakes[1].Count &&
-                    playerSnakes[2].Count > playerSnakes[3].Count)
-                {
-                    winner = PlayerNum.Three;
-                }
-                else if (playerSnakes[3].Count > playerSnakes[0].Count &&
-                    playerSnakes[3].Count > playerSnakes[1].Count &&
-                    playerSnakes[3].Count > playerSnakes[2].Count)
-                {
-                    winner = PlayerNum.Four;
-                }
-                else
+
+                //If a player couldn't break the tie, it's a tie.
+                if (!tieBreakFound)
                 {
                     winner = PlayerNum.None;
                 }
             }
+        }
+
+        /// <summary>
+        /// Returns true if the first direction is opposite to the second.
+        /// </summary>
+        private bool IsOppositeDirection(PlayerDir dir1, PlayerDir dir2)
+        {
+            if ((dir1 == PlayerDir.Left && dir2 == PlayerDir.Right) ||
+                (dir1 == PlayerDir.Right && dir2 == PlayerDir.Left) ||
+                (dir1 == PlayerDir.Up && dir2 == PlayerDir.Down) ||
+                (dir1 == PlayerDir.Down && dir2 == PlayerDir.Up) ||
+                (dir2 == PlayerDir.Left && dir1 == PlayerDir.Right) ||
+                (dir2 == PlayerDir.Right && dir1 == PlayerDir.Left) ||
+                (dir2 == PlayerDir.Up && dir1 == PlayerDir.Down) ||
+                (dir2 == PlayerDir.Down && dir1 == PlayerDir.Up))
+            {
+                return true;
+            }
+
+            return false;
         }
 
         /// <summary>
