@@ -20,7 +20,7 @@ namespace BlockSnake
         private SpriteBatch spriteBatch;
 
         //Fonts.
-        private SpriteFont fntDefault, fntSmall;
+        private SpriteFont fntDefault, fntSmall, fntTiny;
 
         //Textures and sounds.
         public Texture2D sprPoint;
@@ -36,7 +36,7 @@ namespace BlockSnake
         private Texture2D sprTitleOpsGridSmall, sprTitleOpsGridMedium, sprTitleOpsGridLarge;
         private Texture2D sprTitleOpsToggleGrid, sprTitleOpsToggleSfx;
         private SoundEffect sfxGamePoint, sfxGameEnd, sfxMenuClick, sfxMenuSwitch;
-        private SoundEffect sfxMusic01, sfxMusic02, sfxMusic03;
+        private SoundEffect sfxMusic01, sfxMusic02, sfxMusic03, sfxMusic04;
 
         //Gamepad and keyboard controls.
         private GamePadState gpState1, gpState1Old, gpState2, gpState2Old;
@@ -218,6 +218,7 @@ namespace BlockSnake
 
             fntDefault = Content.Load<SpriteFont>("fntDefault");
             fntSmall = Content.Load<SpriteFont>("fntSmall");
+            fntTiny = Content.Load<SpriteFont>("fntTiny");
 
             sfxGamePoint = Content.Load<SoundEffect>("sfxGamePoint");
             sfxGameEnd = Content.Load<SoundEffect>("sfxGameEnd");
@@ -226,7 +227,8 @@ namespace BlockSnake
             sfxMusic01 = Content.Load<SoundEffect>("sfxMusic01");
             sfxMusic02 = Content.Load<SoundEffect>("sfxMusic02");
             sfxMusic03 = Content.Load<SoundEffect>("sfxMusic03");
-            
+            sfxMusic04 = Content.Load<SoundEffect>("sfxMusic04");
+
             sprLineHor = Content.Load<Texture2D>("sprLineHorizontal");
             sprLineVer = Content.Load<Texture2D>("sprLineVertical");
             sprSpriteBlock = Content.Load<Texture2D>("sprSpriteBlock");
@@ -260,7 +262,7 @@ namespace BlockSnake
             scrHeight = GraphicsDevice.Viewport.Height;
 
             //Sets up the music player.
-            musicList = new MusicPlayer(sfxMusic01, sfxMusic02, sfxMusic03);
+            musicList = new MusicPlayer(sfxMusic01, sfxMusic02, sfxMusic03, sfxMusic04);
             musicList.NextSoundRandom();
 
             //Sets the default gamepad and keyboard states.
@@ -1177,6 +1179,20 @@ namespace BlockSnake
                     SpriteEffects.None,
                     0);
 
+                //Draws the copyright.
+                string copyright1 = "Copyright Joshua Lamusga 2014 | Music Copyright airtone";
+                string copyright2 = "Music licensed under a Creative Commons Attribution Noncommercial 3.0 license";
+
+                spriteBatch.DrawString(fntTiny,
+                    copyright1,
+                    new Vector2(scrWidth / 2 - fntTiny.MeasureString(copyright1).X/2, scrHeight / 5 + 332),
+                    Color.Gray);
+
+                spriteBatch.DrawString(fntTiny,
+                    copyright2,
+                    new Vector2(scrWidth / 2 - fntTiny.MeasureString(copyright2).X/2, scrHeight / 5 + 344),
+                    Color.Gray);
+
                 //Sets up a temporary y-coordinate for the selector image.
                 //Based on the currently active button.
                 int tempYPos = 0;
@@ -1492,9 +1508,9 @@ namespace BlockSnake
                 {
                     //If no player has taken an initial direction.
                     if (playerDirections[0] == PlayerDir.None &&
-                        (numPlayers >= 2 && playerDirections[1] == PlayerDir.None) &&
-                        (numPlayers >= 3 && playerDirections[2] == PlayerDir.None) &&
-                        (numPlayers >= 4 && playerDirections[3] == PlayerDir.None))
+                        (numPlayers < 2 || playerDirections[1] == PlayerDir.None) &&
+                        (numPlayers < 3 || playerDirections[2] == PlayerDir.None) &&
+                        (numPlayers < 4 || playerDirections[3] == PlayerDir.None))
                     {
                         spriteBatch.Draw(sprTitleGameStart,
                             new Rectangle(scrWidth / 2, scrHeight / 2, sprTitleGameStart.Width, sprTitleGameStart.Height),
