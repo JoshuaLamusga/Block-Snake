@@ -1,32 +1,60 @@
 ﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace Snake
+namespace BlockSnake
 {
     /// <summary>
     /// Represents a point that the snakes will try to get to get longer.
     /// </summary>
-    public class Point
+    public class GamePoint
     {
+        #region Members
+        /// <summary>
+        /// A reference to the game loop.
+        /// </summary>
         private MainLoop game;
-        //The position on the screen.
-        public int xPos, yPos;
-        //The amount of time that the point exists; see Update.
-        private int tickDelay = 1000, ticks = 0;
-        //Whether or not the point is ready to be deleted.
-        public bool markedForDeletion = false;
-        //The player who got the point.
-        public Player playerWhoCaptured = Player.None;
-
-        public Point(MainLoop game, int xPos, int yPos)
-        {
-            this.game = game;
-            this.xPos = xPos;
-            this.yPos = yPos;
-        }
 
         /// <summary>
-        /// Updates the point (mainly the timer).
+        /// The position on the screen.
+        /// </summary>
+        public Vector2 position;
+        
+        /// <summary>
+        /// The number of frames that must pass until the point is marked for deletion.
+        /// </summary>
+        private int tickDelay = 1000;
+
+        /// <summary>
+        /// The number of frames executed since the point was created.
+        /// </summary>
+        private int ticks = 0;
+        
+        /// <summary>
+        /// A point marked for deletion is removed from any lists managing it.
+        /// </summary>
+        public bool markedForDeletion = false;
+        
+        /// <summary>
+        /// The index of the player that captured the point.
+        /// </summary>
+        public PlayerNum playerWhoCaptured = PlayerNum.None;
+        #endregion
+
+        #region Constructors
+        /// <summary>
+        /// Creates a new game point at the specified location.
+        /// </summary>
+        public GamePoint(MainLoop game, Vector2 position)
+        {
+            this.game = game;
+            this.position = position;
+        }
+        #endregion
+
+        #region Methods
+        /// <summary>
+        /// Updates the point; it will be automatically deleted after some
+        /// time.
         /// </summary>
         public void Update()
         {
@@ -43,8 +71,11 @@ namespace Snake
         public void Draw(SpriteBatch spriteBatch)
         {
             spriteBatch.Draw(game.sprPoint,
-                new Rectangle(xPos, yPos, (int)game.gridXPixels, (int)game.gridYPixels), //The destination rectangle
+                new Rectangle((int)position.X, (int)position.Y,
+                    (int)game.GetGridCellSizes(game.gridSize).X,
+                    (int)game.GetGridCellSizes(game.gridSize).Y),
                 Color.White);
         }
+        #endregion
     }
 }

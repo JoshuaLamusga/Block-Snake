@@ -9,8 +9,8 @@
     <ProjectGuid>{4E888DAC-B077-4084-BAFA-DD9493F173B1}</ProjectGuid>
     <OutputType>WinExe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Mono_Snake</RootNamespace>
-    <AssemblyName>Mono-Snake</AssemblyName>
+    <RootNamespace>BlockSnake</RootNamespace>
+    <AssemblyName>BlockSnake</AssemblyName>
     <FileAlignment>512</FileAlignment>
     <MonoGamePlatform>Windows</MonoGamePlatform>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
@@ -42,14 +42,15 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Direction.cs" />
+    <Compile Include="GridSize.cs" />
     <Compile Include="MainLoop.cs" />
     <Compile Include="MenuButtons.cs" />
     <Compile Include="MusicPlayer.cs" />
-    <Compile Include="Player.cs" />
+    <Compile Include="PlayerNum.cs" />
     <Compile Include="Point.cs" />
     <Compile Include="MainInit.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="RoomIndex.cs" />
+    <Compile Include="GameState.cs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="MonoGame.Framework">

@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Snake
+namespace BlockSnake
 {
 #if WINDOWS || LINUX
     /// <summary>
@@ -15,7 +15,9 @@ namespace Snake
         static void Main()
         {
             using (MainLoop game = new MainLoop())
+            {
                 game.Run();
+            }
         }
     }
 #endif

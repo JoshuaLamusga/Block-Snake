@@ -3,41 +3,60 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Snake
+namespace BlockSnake
 {
     /// <summary>
-    /// An extremely basic music player.
+    /// Plays music in a random order.
     /// </summary>
     public class MusicPlayer
     {
-        public List<SoundEffect> sounds = new List<SoundEffect>(); //The list of sounds.
-        public SoundEffectInstance sound; //The current sound.
-        public int soundIndex = 0; //The position of the sound in the list.
+        #region Members
+        /// <summary>
+        /// Contains a list of all sounds used in the music player.
+        /// </summary>
+        public List<SoundEffect> sounds = new List<SoundEffect>();
 
+        /// <summary>
+        /// Contains the current sound effect loaded.
+        /// </summary>
+        public SoundEffectInstance sound;
+
+        /// <summary>
+        /// Gets the position of the sound in the list.
+        /// </summary>
+        public int SoundIndex
+        {
+            get;
+            private set;
+        }
+        #endregion
+
+        #region Constructors
         /// <summary>
         /// Creates a new music player instance.
         /// </summary>
-        /// <param name="sounds">Takes any number of sounds.</param>
+        /// <param name="sounds">Sounds to be loaded.</param>
         public MusicPlayer(params SoundEffect[] snds)
         {
-            //If there was anything specified in the parentheses.
-            //Adds the listed songs to the playlist.
+            SoundIndex = 0;
+
             foreach (SoundEffect sfx in snds)
             {
                 sounds.Add(sfx);
             }
         }
+        #endregion
 
+        #region Methods
         /// <summary>
-        /// Randomly selects the next sound to play.
-        /// Returns the sound's index.
+        /// Selects the next sound to play and returns the sound index.
         /// </summary>
         public int NextSoundRandom()
         {
-            soundIndex = new Random().Next(sounds.Count);
-            sound = sounds.ElementAt<SoundEffect>(soundIndex).CreateInstance();
+            SoundIndex = new Random().Next(sounds.Count);
+            sound = sounds.ElementAt(SoundIndex).CreateInstance();
             sound.Play();
-            return soundIndex;
+            return SoundIndex;
         }
 
         /// <summary>
@@ -47,7 +66,7 @@ namespace Snake
         {
             Random rng = new Random();
             int numSongs = sounds.Count;
-            //Iterates through O(1) times.
+
             while (numSongs > 1)
             {
                 numSongs--;
@@ -59,22 +78,23 @@ namespace Snake
         }
 
         /// <summary>
-        /// Checks to see if the song ended and begins the next.
+        /// Progresses through the music list.
         /// </summary>
         public void Update()
         {
             //When the sound finishes, start another.
             if (sound.State == SoundState.Stopped)
             {
-                //Keeps track of the old sound index for the loop.
-                int tempSoundIndex = soundIndex;
+                //Randomizes to any song except the current one.
+                int tempSoundIndex = SoundIndex;
 
-                while (tempSoundIndex == soundIndex)
+                while (tempSoundIndex == SoundIndex)
                 {
                     sound.Stop();
                     NextSoundRandom();
                 }
             }
         }
+        #endregion
     }
 }

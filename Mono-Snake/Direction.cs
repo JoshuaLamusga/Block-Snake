@@ -1,6 +1,9 @@
-﻿namespace Snake
+﻿namespace BlockSnake
 {
-    public enum Direction
+    /// <summary>
+    /// Represents the direction that a player is traveling.
+    /// </summary>
+    public enum PlayerDir
     {
         Left,
         Right,
