@@ -1,21 +1,22 @@
-﻿namespace Snake
+﻿namespace BlockSnake
 {
     /// <summary>
     /// Buttons corresponding to the game menu.
     /// </summary>
     public enum MenuButtons
     {
-        play,
-        ops,
-        info,
-        small,
-        medium,
-        large,
-        toggleGrid,
-        toggleSfx,
-        onePlayer,
-        twoPlayer,
-        threePlayer,
-        fourPlayer
+        Play,
+        Ops,
+        Info,
+        SmallGrid,
+        MediumGrid,
+        LargeGrid,
+        ToggleGrid,
+        ToggleSfx,
+        OnePlayer,
+        TwoPlayer,
+        ThreePlayer,
+        FourPlayer,
+        Back
     }
 }
