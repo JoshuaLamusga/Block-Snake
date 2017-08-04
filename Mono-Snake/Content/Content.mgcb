@@ -51,24 +51,6 @@
 /processorParam:Quality=Best
 /build:sfxMenuSwitch.wav
 
-#begin sfxMusic01.wav
-/importer:WavImporter
-/processor:SoundEffectProcessor
-/processorParam:Quality=Best
-/build:sfxMusic01.wav
-
-#begin sfxMusic02.wav
-/importer:WavImporter
-/processor:SoundEffectProcessor
-/processorParam:Quality=Best
-/build:sfxMusic02.wav
-
-#begin sfxMusic03.wav
-/importer:WavImporter
-/processor:SoundEffectProcessor
-/processorParam:Quality=Best
-/build:sfxMusic03.wav
-
 #begin sprLineHorizontal.png
 /importer:TextureImporter
 /processor:TextureProcessor
@@ -392,4 +374,35 @@
 /processorParam:MakeSquare=False
 /processorParam:TextureFormat=Color
 /build:sprTitleInfoHowToPlay.png
+
+#begin sfxMusic01.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:sfxMusic01.wav
+
+#begin sfxMusic02.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:sfxMusic02.wav
+
+#begin sfxMusic03.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:sfxMusic03.wav
+
+#begin sfxMusic04.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:sfxMusic04.wav
+
+#begin fntTiny.spritefont
+/importer:FontDescriptionImporter
+/processor:FontDescriptionProcessor
+/processorParam:PremultiplyAlpha=True
+/processorParam:TextureFormat=Compressed
+/build:fntTiny.spritefont
 
