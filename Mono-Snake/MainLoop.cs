@@ -790,25 +790,42 @@ namespace BlockSnake
                         gpState1.ThumbSticks.Left.X > Math.Abs(gpState1.ThumbSticks.Left.Y)) ||
                         (gpState1.IsButtonDown(Buttons.DPadRight) && gpState1Old.IsButtonUp(Buttons.DPadRight)))
                     {
-                        playerDirections[0] = PlayerDir.Right;
+                        //Prevents moving backwards into yourself with 2+ blocks.
+                        if (playerSnakes.Count < 2 ||
+                            !IsOppositeDirection(playerDirections[0], PlayerDir.Right))
+                        {
+                            playerDirections[0] = PlayerDir.Right;
+                        }
                     }
                     else if ((gpState1.ThumbSticks.Left.X < 0 &&
                         gpState1.ThumbSticks.Left.X < -Math.Abs(gpState1.ThumbSticks.Left.Y)) ||
                         (gpState1.IsButtonDown(Buttons.DPadLeft) && gpState1Old.IsButtonUp(Buttons.DPadLeft)))
                     {
-                        playerDirections[0] = PlayerDir.Left;
+                        if (playerSnakes.Count < 2 ||
+                            !IsOppositeDirection(playerDirections[0], PlayerDir.Left))
+                        {
+                            playerDirections[0] = PlayerDir.Left;
+                        }
                     }
                     else if ((gpState1.ThumbSticks.Left.Y < 0 &&
                         gpState1.ThumbSticks.Left.Y < Math.Abs(gpState1.ThumbSticks.Left.X)) ||
                         (gpState1.IsButtonDown(Buttons.DPadDown) && gpState1Old.IsButtonUp(Buttons.DPadDown)))
                     {
-                        playerDirections[0] = PlayerDir.Down;
+                        if (playerSnakes.Count < 2 ||
+                            !IsOppositeDirection(playerDirections[0], PlayerDir.Down))
+                        {
+                            playerDirections[0] = PlayerDir.Down;
+                        }
                     }
                     else if ((gpState1.ThumbSticks.Left.Y > 0 &&
                         gpState1.ThumbSticks.Left.Y > Math.Abs(gpState1.ThumbSticks.Left.X)) ||
                         (gpState1.IsButtonDown(Buttons.DPadUp) && gpState1Old.IsButtonUp(Buttons.DPadUp)))
                     {
-                        playerDirections[0] = PlayerDir.Up;
+                        if (playerSnakes.Count < 2 ||
+                            !IsOppositeDirection(playerDirections[0], PlayerDir.Up))
+                        {
+                            playerDirections[0] = PlayerDir.Up;
+                        }
                     }
                 }
                 //Processes gamepad input for player 2.
@@ -818,25 +835,41 @@ namespace BlockSnake
                         gpState2.ThumbSticks.Left.X > Math.Abs(gpState2.ThumbSticks.Left.Y)) ||
                         (gpState2.IsButtonDown(Buttons.DPadRight) && gpState2Old.IsButtonUp(Buttons.DPadRight)))
                     {
-                        playerDirections[1] = PlayerDir.Right;
+                        if (playerSnakes.Count < 2 ||
+                            !IsOppositeDirection(playerDirections[1], PlayerDir.Right))
+                        {
+                            playerDirections[1] = PlayerDir.Right;
+                        }
                     }
                     else if ((gpState2.ThumbSticks.Left.X < 0 &&
                         gpState2.ThumbSticks.Left.X < -Math.Abs(gpState2.ThumbSticks.Left.Y)) ||
                         (gpState2.IsButtonDown(Buttons.DPadLeft) && gpState2Old.IsButtonUp(Buttons.DPadLeft)))
                     {
-                        playerDirections[1] = PlayerDir.Left;
+                        if (playerSnakes.Count < 2 ||
+                            !IsOppositeDirection(playerDirections[1], PlayerDir.Left))
+                        {
+                            playerDirections[1] = PlayerDir.Left;
+                        }
                     }
                     else if ((gpState2.ThumbSticks.Left.Y < 0 &&
                         gpState2.ThumbSticks.Left.Y < Math.Abs(gpState2.ThumbSticks.Left.X)) ||
                         (gpState2.IsButtonDown(Buttons.DPadDown) && gpState2Old.IsButtonUp(Buttons.DPadDown)))
                     {
-                        playerDirections[1] = PlayerDir.Down;
+                        if (playerSnakes.Count < 2 ||
+                            !IsOppositeDirection(playerDirections[1], PlayerDir.Down))
+                        {
+                            playerDirections[1] = PlayerDir.Down;
+                        }
                     }
                     else if ((gpState2.ThumbSticks.Left.Y > 0 &&
                         gpState2.ThumbSticks.Left.Y > Math.Abs(gpState2.ThumbSticks.Left.X)) ||
                         (gpState2.IsButtonDown(Buttons.DPadUp) && gpState2Old.IsButtonUp(Buttons.DPadUp)))
                     {
-                        playerDirections[1] = PlayerDir.Up;
+                        if (playerSnakes.Count < 2 ||
+                            !IsOppositeDirection(playerDirections[1], PlayerDir.Up))
+                        {
+                            playerDirections[1] = PlayerDir.Up;
+                        }
                     }
                 }
                 //Processes gamepad input for player 3.
@@ -846,25 +879,41 @@ namespace BlockSnake
                         gpState3.ThumbSticks.Left.X > Math.Abs(gpState3.ThumbSticks.Left.Y)) ||
                         (gpState3.IsButtonDown(Buttons.DPadRight) && gpState3Old.IsButtonUp(Buttons.DPadRight)))
                     {
-                        playerDirections[2] = PlayerDir.Right;
+                        if (playerSnakes.Count < 2 ||
+                            !IsOppositeDirection(playerDirections[2], PlayerDir.Right))
+                        {
+                            playerDirections[2] = PlayerDir.Right;
+                        }
                     }
                     else if ((gpState3.ThumbSticks.Left.X < 0 &&
                         gpState3.ThumbSticks.Left.X < -Math.Abs(gpState3.ThumbSticks.Left.Y)) ||
                         (gpState3.IsButtonDown(Buttons.DPadLeft) && gpState3Old.IsButtonUp(Buttons.DPadLeft)))
                     {
-                        playerDirections[2] = PlayerDir.Left;
+                        if (playerSnakes.Count < 2 ||
+                            !IsOppositeDirection(playerDirections[2], PlayerDir.Left))
+                        {
+                            playerDirections[2] = PlayerDir.Left;
+                        }
                     }
                     else if ((gpState3.ThumbSticks.Left.Y < 0 &&
                         gpState3.ThumbSticks.Left.Y < Math.Abs(gpState3.ThumbSticks.Left.X)) ||
                         (gpState3.IsButtonDown(Buttons.DPadDown) && gpState3Old.IsButtonUp(Buttons.DPadDown)))
                     {
-                        playerDirections[2] = PlayerDir.Down;
+                        if (playerSnakes.Count < 2 ||
+                            !IsOppositeDirection(playerDirections[2], PlayerDir.Down))
+                        {
+                            playerDirections[2] = PlayerDir.Down;
+                        }
                     }
                     else if ((gpState3.ThumbSticks.Left.Y > 0 &&
                         gpState3.ThumbSticks.Left.Y > Math.Abs(gpState3.ThumbSticks.Left.X)) ||
                         (gpState3.IsButtonDown(Buttons.DPadUp) && gpState3Old.IsButtonUp(Buttons.DPadUp)))
                     {
-                        playerDirections[2] = PlayerDir.Up;
+                        if (playerSnakes.Count < 2 ||
+                            !IsOppositeDirection(playerDirections[2], PlayerDir.Up))
+                        {
+                            playerDirections[2] = PlayerDir.Up;
+                        }
                     }
                 }
                 //Processes gamepad input for player 4.
@@ -874,44 +923,64 @@ namespace BlockSnake
                         gpState4.ThumbSticks.Left.X > Math.Abs(gpState4.ThumbSticks.Left.Y)) ||
                         (gpState4.IsButtonDown(Buttons.DPadRight) && gpState4Old.IsButtonUp(Buttons.DPadRight)))
                     {
-                        playerDirections[3] = PlayerDir.Right;
+                        if (playerSnakes.Count < 2 ||
+                            !IsOppositeDirection(playerDirections[3], PlayerDir.Right))
+                        {
+                            playerDirections[3] = PlayerDir.Right;
+                        }
                     }
                     else if ((gpState4.ThumbSticks.Left.X < 0 &&
                         gpState4.ThumbSticks.Left.X < -Math.Abs(gpState4.ThumbSticks.Left.Y)) ||
                         (gpState4.IsButtonDown(Buttons.DPadLeft) && gpState4Old.IsButtonUp(Buttons.DPadLeft)))
                     {
-                        playerDirections[3] = PlayerDir.Left;
+                        if (playerSnakes.Count < 2 ||
+                            !IsOppositeDirection(playerDirections[3], PlayerDir.Left))
+                        {
+                            playerDirections[3] = PlayerDir.Left;
+                        }
                     }
                     else if ((gpState4.ThumbSticks.Left.Y < 0 &&
                         gpState4.ThumbSticks.Left.Y < Math.Abs(gpState4.ThumbSticks.Left.X)) ||
                         (gpState4.IsButtonDown(Buttons.DPadDown) && gpState4Old.IsButtonUp(Buttons.DPadDown)))
                     {
-                        playerDirections[3] = PlayerDir.Down;
+                        if (playerSnakes.Count < 2 ||
+                            !IsOppositeDirection(playerDirections[3], PlayerDir.Down))
+                        {
+                            playerDirections[3] = PlayerDir.Down;
+                        }
                     }
                     else if ((gpState4.ThumbSticks.Left.Y > 0 &&
                         gpState4.ThumbSticks.Left.Y > Math.Abs(gpState4.ThumbSticks.Left.X)) ||
                         (gpState4.IsButtonDown(Buttons.DPadUp) && gpState4Old.IsButtonUp(Buttons.DPadUp)))
                     {
-                        playerDirections[3] = PlayerDir.Up;
+                        if (playerSnakes.Count < 2 ||
+                        !IsOppositeDirection(playerDirections[3], PlayerDir.Up))
+                        {
+                            playerDirections[3] = PlayerDir.Up;
+                        }
                     }
                 }
 
                 //Updates the keyboard for player 1.
                 if (!losers.Contains(PlayerNum.One))
                 {
-                    if (kbState.IsKeyDown(Keys.Right))
+                    if (kbState.IsKeyDown(Keys.Right) && (playerSnakes[0].Count < 2 ||
+                            !IsOppositeDirection(playerDirections[0], PlayerDir.Right)))
                     {
                         playerDirections[0] = PlayerDir.Right;
                     }
-                    if (kbState.IsKeyDown(Keys.Up))
+                    if (kbState.IsKeyDown(Keys.Up) && (playerSnakes[0].Count < 2 ||
+                            !IsOppositeDirection(playerDirections[0], PlayerDir.Up)))
                     {
                         playerDirections[0] = PlayerDir.Up;
                     }
-                    if (kbState.IsKeyDown(Keys.Left))
+                    if (kbState.IsKeyDown(Keys.Left) && (playerSnakes[0].Count < 2 ||
+                            !IsOppositeDirection(playerDirections[0], PlayerDir.Left)))
                     {
                         playerDirections[0] = PlayerDir.Left;
                     }
-                    if (kbState.IsKeyDown(Keys.Down))
+                    if (kbState.IsKeyDown(Keys.Down) && (playerSnakes[0].Count < 2 ||
+                            !IsOppositeDirection(playerDirections[0], PlayerDir.Down)))
                     {
                         playerDirections[0] = PlayerDir.Down;
                     }
@@ -920,19 +989,23 @@ namespace BlockSnake
                 //Updates the keyboard for player 2.
                 if (!losers.Contains(PlayerNum.Two) && numPlayers >= 2)
                 {
-                    if (kbState.IsKeyDown(Keys.D))
+                    if (kbState.IsKeyDown(Keys.D) && (playerSnakes[1].Count < 2 ||
+                            !IsOppositeDirection(playerDirections[1], PlayerDir.Right)))
                     {
                         playerDirections[1] = PlayerDir.Right;
                     }
-                    if (kbState.IsKeyDown(Keys.W))
+                    if (kbState.IsKeyDown(Keys.W) && (playerSnakes[1].Count < 2 ||
+                            !IsOppositeDirection(playerDirections[1], PlayerDir.Up)))
                     {
                         playerDirections[1] = PlayerDir.Up;
                     }
-                    if (kbState.IsKeyDown(Keys.A))
+                    if (kbState.IsKeyDown(Keys.A) && (playerSnakes[1].Count < 2 ||
+                            !IsOppositeDirection(playerDirections[1], PlayerDir.Left)))
                     {
                         playerDirections[1] = PlayerDir.Left;
                     }
-                    if (kbState.IsKeyDown(Keys.S))
+                    if (kbState.IsKeyDown(Keys.S) && (playerSnakes[1].Count < 2 ||
+                            !IsOppositeDirection(playerDirections[1], PlayerDir.Down)))
                     {
                         playerDirections[1] = PlayerDir.Down;
                     }
@@ -941,19 +1014,23 @@ namespace BlockSnake
                 //Updates the keyboard for player 3.
                 if (!losers.Contains(PlayerNum.Three) && numPlayers >= 3)
                 {
-                    if (kbState.IsKeyDown(Keys.L))
+                    if (kbState.IsKeyDown(Keys.L) && (playerSnakes[2].Count < 2 ||
+                            !IsOppositeDirection(playerDirections[2], PlayerDir.Right)))
                     {
                         playerDirections[2] = PlayerDir.Right;
                     }
-                    if (kbState.IsKeyDown(Keys.I))
+                    if (kbState.IsKeyDown(Keys.I) && (playerSnakes[2].Count < 2 ||
+                            !IsOppositeDirection(playerDirections[2], PlayerDir.Up)))
                     {
                         playerDirections[2] = PlayerDir.Up;
                     }
-                    if (kbState.IsKeyDown(Keys.J))
+                    if (kbState.IsKeyDown(Keys.J) && (playerSnakes[2].Count < 2 ||
+                            !IsOppositeDirection(playerDirections[2], PlayerDir.Left)))
                     {
                         playerDirections[2] = PlayerDir.Left;
                     }
-                    if (kbState.IsKeyDown(Keys.K))
+                    if (kbState.IsKeyDown(Keys.K) && (playerSnakes[2].Count < 2 ||
+                            !IsOppositeDirection(playerDirections[2], PlayerDir.Down)))
                     {
                         playerDirections[2] = PlayerDir.Down;
                     }
@@ -962,19 +1039,23 @@ namespace BlockSnake
                 //Updates the keyboard for player 4.
                 if (!losers.Contains(PlayerNum.Four) && numPlayers >= 4)
                 {
-                    if (kbState.IsKeyDown(Keys.H))
+                    if (kbState.IsKeyDown(Keys.H) && (playerSnakes[3].Count < 2 ||
+                            !IsOppositeDirection(playerDirections[3], PlayerDir.Right)))
                     {
                         playerDirections[3] = PlayerDir.Right;
                     }
-                    if (kbState.IsKeyDown(Keys.T))
+                    if (kbState.IsKeyDown(Keys.T) && (playerSnakes[3].Count < 2 ||
+                            !IsOppositeDirection(playerDirections[3], PlayerDir.Up)))
                     {
                         playerDirections[3] = PlayerDir.Up;
                     }
-                    if (kbState.IsKeyDown(Keys.F))
+                    if (kbState.IsKeyDown(Keys.F) && (playerSnakes[3].Count < 2 ||
+                            !IsOppositeDirection(playerDirections[3], PlayerDir.Left)))
                     {
                         playerDirections[3] = PlayerDir.Left;
                     }
-                    if (kbState.IsKeyDown(Keys.G))
+                    if (kbState.IsKeyDown(Keys.G) && (playerSnakes[3].Count < 2 ||
+                            !IsOppositeDirection(playerDirections[3], PlayerDir.Down)))
                     {
                         playerDirections[3] = PlayerDir.Down;
                     }
