@@ -1,3 +1,5 @@
+This game is made for Windows in MonoGame. It's similar to the classic snake game, but has a few twists and supports multiplayer.
+
 ## How to Play
 Win by collecting by as many dots as possible without running off-screen, into yourself, or others.
 
