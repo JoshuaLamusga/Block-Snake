@@ -1,7 +1,7 @@
 This game is made for Windows in MonoGame. It's similar to the classic snake game, but has a few twists and supports multiplayer.
 
 ## How to Play
-Win by collecting by as many dots as possible without running off-screen, into yourself, or others.
+Win by collecting as many dots as possible without running off-screen, into yourself, or others.
 
 ### Dots
 Dots disappear after 10 seconds. There is always at least one dot, but sometimes a second may appear. Collecting dots speeds up the game.
